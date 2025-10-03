@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>UMA Admin – Events</title>
+  <link rel="stylesheet" href="styles.css"/>
+
+  <!-- Firebase SDKs (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+  <!-- Your Firebase config -->
+  <script src="config.js"></script>
+</head>
+<body>
+  <!-- Sticky header -->
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark">UMA</span>
+      <span class="brand-sub">Admin</span>
+    </div>
+
+    <nav class="nav">
+      <span id="who" class="muted"></span>
+      <!-- hidden until admin login -->
+      <button id="btnShowEvents" class="btn ghost hidden">Eventos</button>
+      <button id="btnShowUsers"  class="btn ghost hidden">Usuarios</button>
+      <button id="btnLogout"     class="btn ghost hidden">Cerrar sesión</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <!-- AUTH -->
+    <section id="authCard" class="card auth max-520 hidden" aria-live="polite">
+      <h2 class="card-title">Sign in (Admins)</h2>
+      <div class="form">
+        <label for="email">Email</label>
+        <input id="email" type="email" placeholder="you@example.com" autocomplete="username"/>
+
+        <label for="password">Password</label>
+        <input id="password" type="password" placeholder="••••••••" autocomplete="current-password"/>
+
+        <button id="btnLogin" class="btn primary w-100">Sign in</button>
+        <p id="authMsg" class="muted pad-top-6"></p>
+      </div>
+    </section>
+
+    <!-- NO ACCESS -->
+    <section id="noAccess" class="card max-520 hidden">
+      <h2 class="card-title">No tienes acceso</h2>
+      <p>Tu cuenta no tiene rol de <b>admin</b>. Contacta al equipo de sistemas.</p>
+    </section>
+
+    <!-- EVENTS -->
+    <section id="eventsView" class="hidden">
+      <div class="toolbar">
+        <h2 class="toolbar-title">Eventos</h2>
+        <div class="toolbar-actions">
+          <button id="btnNewEvent" class="btn primary">Nuevo evento</button>
+          <button id="btnRefresh"  class="btn ghost">Refrescar</button>
+        </div>
+      </div>
+
+      <div id="eventsList" class="cards-grid"></div>
+      <p id="emptyEvents" class="muted center hidden">No hay eventos.</p>
+    </section>
+
+    <!-- USERS -->
+    <section id="usersView" class="hidden">
+      <div class="toolbar">
+        <h2 class="toolbar-title">Usuarios</h2>
+        <div class="toolbar-actions">
+          <input id="usrSearch" placeholder="Buscar por código o DNI" />
+          <button id="btnReloadUsers" class="btn ghost">Refrescar</button>
+        </div>
+      </div>
+
+      <div class="grid two">
+        <!-- Create -->
+        <div class="card">
+          <h3 class="card-title">Agregar usuario</h3>
+          <div class="form">
+            <label for="usrEmail">Email</label>
+            <input id="usrEmail" type="email" placeholder="usuario@uma.edu.pe" />
+
+            <label for="usrDni">DNI (se usará como contraseña)</label>
+            <input id="usrDni" type="text" inputmode="numeric" />
+
+            <label for="usrCode">stCode (código)</label>
+            <input id="usrCode" type="text" />
+
+            <button id="btnAddUser" class="btn primary">Crear usuario</button>
+            <p id="userMsg" class="muted pad-top-6"></p>
+          </div>
+        </div>
+
+        <!-- List -->
+        <div class="card">
+          <div class="table-wrap">
+            <table id="usersTable">
+              <thead>
+                <tr>
+                  <th>UID</th>
+                  <th>stCode</th>
+                  <th>DNI</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <p id="emptyUsers" class="muted center hidden">No hay usuarios.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- EVENT EDITOR -->
+    <dialog id="eventDialog" class="modal">
+      <form method="dialog" class="card">
+        <div class="modal-header">
+          <h3 id="dlgTitle" class="card-title">Crear evento</h3>
+          <button id="dlgClose" type="button" class="icon-btn" aria-label="Cerrar">✕</button>
+        </div>
+
+        <div class="grid two">
+          <div>
+            <label for="evTitle">Título</label>
+            <input id="evTitle" type="text" placeholder="Título del evento" required/>
+          </div>
+          <div>
+            <label for="evStatus">Estado</label>
+            <select id="evStatus">
+              <option value="ongoing">En curso</option>
+              <option value="upcoming" selected>Próximo</option>
+            </select>
+          </div>
+
+          <div class="full">
+            <label for="evDesc">Descripción</label>
+            <textarea id="evDesc" rows="4" placeholder="Detalles del evento"></textarea>
+          </div>
+
+          <div>
+            <label for="evDate">Fecha</label>
+            <input id="evDate" type="date"/>
+          </div>
+          <div>
+            <label for="evTime">Hora</label>
+            <input id="evTime" type="time"/>
+          </div>
+
+          <div>
+            <label for="evLocation">Ubicación</label>
+            <input id="evLocation" type="text" placeholder="Auditorio, Aula, etc."/>
+          </div>
+          <div>
+            <label for="evTags">Etiquetas (coma)</label>
+            <input id="evTags" type="text" placeholder="salud, charla, feria"/>
+          </div>
+
+          <div class="full">
+            <label for="evImage">Imagen</label>
+            <input id="evImage" type="file" accept="image/*"/>
+            <img id="evPreview" class="preview hidden" alt="Vista previa"/>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button id="btnSaveEvent" class="btn primary" type="button">Guardar</button>
+          <button id="btnDeleteEvent" class="btn danger hidden" type="button">Eliminar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- REGISTRATIONS -->
+    <dialog id="regDialog" class="modal wide">
+      <div class="card">
+        <div class="modal-header">
+          <h3 class="card-title">Inscritos</h3>
+          <button id="dlgRegClose" type="button" class="icon-btn" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="table-wrap">
+          <table id="regTable">
+            <thead>
+              <tr>
+                <th>Nombre</th><th>Código</th><th>DNI</th>
+                <th>Facultad</th><th>Programa</th><th>Semestre</th>
+                <th>Modo</th><th>Email</th><th>Teléfono</th><th>Fecha</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </dialog>
+  </main>
+
+  <footer class="app-footer">
+    <div class="container small">
+      <span>UMA Admin · Eventos</span>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
