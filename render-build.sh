@@ -1,31 +1,53 @@
 #!/usr/bin/env bash
-# Root-level build script for Render Static Site
-# Generates config.js from environment variables NEXT TO index.html
 set -euo pipefail
 
-TARGET_DIR="."
-
-if [ ! -f "$TARGET_DIR/index.html" ]; then
-  echo "⚠️ index.html not found at repo root. If your files live in a subfolder, either:"
-  echo "   1) Move this script into that folder, or"
-  echo "   2) Change Render's 'Publish Directory' to that folder, or"
-  echo "   3) Edit TARGET_DIR to point to that folder."
+# Ensure index.html exists at repo root
+if [ ! -f "index.html" ]; then
+  echo "❌ index.html not found at repo root."
+  exit 1
 fi
 
-cat > "$TARGET_DIR/config.js" <<EOF
+# Required Firebase vars
+required_vars=(
+  FIREBASE_API_KEY
+  FIREBASE_AUTH_DOMAIN
+  FIREBASE_DATABASE_URL
+  FIREBASE_PROJECT_ID
+  FIREBASE_STORAGE_BUCKET
+  FIREBASE_MESSAGING_SENDER_ID
+  FIREBASE_APP_ID
+  FIREBASE_MEASUREMENT_ID
+)
+for v in "${required_vars[@]}"; do
+  if [ -z "${!v:-}" ]; then echo "❌ Missing env var: $v"; MISSING=1; fi
+done
+if [ "${MISSING:-0}" = "1" ]; then exit 2; fi
+
+# Prefer envsubst on the template
+if command -v envsubst >/dev/null 2>&1 && [ -f "config.template.js" ]; then
+  echo "ℹ️ Using envsubst on config.template.js"
+  envsubst < config.template.js > config.js
+else
+  echo "ℹ️ Generating config.js via heredoc fallback"
+  cat > config.js <<'EOF'
 // generated at build time
 window.umaConfig = {
   firebase: {
-    apiKey: "${FIREBASE_API_KEY:-}",
-    authDomain: "${FIREBASE_AUTH_DOMAIN:-}",
-    databaseURL: "${FIREBASE_DATABASE_URL:-}",
-    projectId: "${FIREBASE_PROJECT_ID:-}",
-    storageBucket: "${FIREBASE_STORAGE_BUCKET:-}",
-    messagingSenderId: "${FIREBASE_MESSAGING_SENDER_ID:-}",
-    appId: "${FIREBASE_APP_ID:-}",
-    measurementId: "${FIREBASE_MEASUREMENT_ID:-}"
-  }
+    apiKey: "${FIREBASE_API_KEY}",
+    authDomain: "${FIREBASE_AUTH_DOMAIN}",
+    databaseURL: "${FIREBASE_DATABASE_URL}",
+    projectId: "${FIREBASE_PROJECT_ID}",
+    storageBucket: "${FIREBASE_STORAGE_BUCKET}",
+    messagingSenderId: "${FIREBASE_MESSAGING_SENDER_ID}",
+    appId: "${FIREBASE_APP_ID}",
+    measurementId: "${FIREBASE_MEASUREMENT_ID}"
+  },
+  apiBase: "${API_BASE_URL:-}"
 };
 EOF
+fi
 
-echo "✅ Generated $TARGET_DIR/config.js"
+# Keep the template out of the published output
+[ -f "config.template.js" ] && rm -f config.template.js || true
+
+echo "✅ Generated config.js"

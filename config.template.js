@@ -1,6 +1,5 @@
 // config.template.js — generated at build from environment variables
-// NOTE: These values are injected during the Render build; they are still PUBLIC
-// in the final JS bundle because this is a client app.
+// NOTE: These are injected during the Render build; they are PUBLIC in the client bundle.
 window.umaConfig = {
   firebase: {
     apiKey: "${FIREBASE_API_KEY}",
@@ -11,5 +10,7 @@ window.umaConfig = {
     messagingSenderId: "${FIREBASE_MESSAGING_SENDER_ID}",
     appId: "${FIREBASE_APP_ID}",
     measurementId: "${FIREBASE_MEASUREMENT_ID}"
-  }
+  },
+  // Backend (Admin API) base URL — no trailing slash
+  apiBase: "${API_BASE_URL}"
 };

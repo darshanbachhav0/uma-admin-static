@@ -1,9 +1,10 @@
 // UMA Admin Web (Vanilla JS, Firebase compat v10).
-// Light theme compatible. Events + Users (users store only {dni, stCode}).
-// Adds robust dialog close (button, Esc, and backdrop click) and forces "start logged out".
+// Hardened: custom-claims authz, no secondary app, user ops via backend API.
 (function(){
   const cfg = window.umaConfig && window.umaConfig.firebase;
-  if(!cfg){ console.error("Missing config.js"); }
+  const API_BASE = (window.umaConfig && window.umaConfig.apiBase) || ''; // e.g. https://uma-admin-api.onrender.com
+
+  if(!cfg){ console.error("Missing window.umaConfig.firebase"); }
 
   // Init Firebase
   const app = firebase.initializeApp(cfg);
@@ -11,17 +12,10 @@
   const db   = firebase.database();
   const storage = firebase.storage();
 
-  // Secondary app for account ops (doesn't affect admin session)
-  const secApp  = firebase.apps.find(a => a.name === 'sec') || firebase.initializeApp(cfg, 'sec');
-  const secAuth = secApp.auth();
-
-  // ----- Force "start logged out" (no persisted session) -----
+  // Force "start logged out" (no persisted session)
   auth.setPersistence(firebase.auth.Auth.Persistence.NONE)
     .then(() => { if (auth.currentUser) return auth.signOut(); })
-    .catch((e)=> console.warn('setPersistence (main) failed', e));
-
-  secAuth.setPersistence(firebase.auth.Auth.Persistence.NONE)
-    .catch((e)=> console.warn('setPersistence (sec) failed', e));
+    .catch((e)=> console.warn('setPersistence failed', e));
 
   // ---------- Common UI ----------
   const authCard  = $('#authCard');
@@ -67,23 +61,18 @@
   }
   function logout(){ auth.signOut(); setNavVisibility(false,false); }
 
-  auth.onAuthStateChanged(async (user)=>{
+  auth.onAuthStateChanged(async (user) => {
     currentUser = user || null;
     whoEl.textContent = user ? (user.email || '') : '';
     isAdmin = false;
 
-    if(!user){
-      showSection('auth'); setNavVisibility(false,false);
-      return;
-    }
-    try {
-      // Only admins can use the site (other users can exist without "role")
-      const snap = await db.ref('users').child(user.uid).get();
-      const role = (snap.val() && (snap.val().role || '')).toString().trim().toLowerCase();
-      isAdmin = (role === 'admin');
-    } catch(e) { console.warn('role load failed', e); }
+    if (!user) { showSection('auth'); setNavVisibility(false,false); return; }
 
-    if(!isAdmin){ showSection('noaccess'); setNavVisibility(true,false); return; }
+    // Trust only the ID token's custom claims (set via backend)
+    const token = await user.getIdTokenResult(true);
+    isAdmin = !!token.claims.admin;
+
+    if (!isAdmin) { showSection('noaccess'); setNavVisibility(true,false); return; }
 
     setNavVisibility(true,true);
     showSection('events');
@@ -96,6 +85,17 @@
     if(which==='events')  eventsView.classList.remove('hidden');
     if(which==='users')   usersView.classList.remove('hidden');
     if(which==='noaccess')noAccess.classList.remove('hidden');
+  }
+
+  // ---------- Small API helper (admin ID token) ----------
+  async function api(path, opts = {}) {
+    if(!API_BASE) throw new Error('API_BASE not configured (window.umaConfig.apiBase)');
+    const idToken = await auth.currentUser.getIdToken(true);
+    const headers = Object.assign({'Content-Type':'application/json','Authorization':`Bearer ${idToken}`}, opts.headers||{});
+    const res = await fetch(API_BASE + path, Object.assign({}, opts, { headers }));
+    const data = await res.json().catch(()=> ({}));
+    if(!res.ok) throw new Error(data && data.error || `HTTP ${res.status}`);
+    return data;
   }
 
   // ---------- EVENTS ----------
@@ -263,7 +263,7 @@
   const regDialog = $('#regDialog');
   const btnRegClose = $('#dlgRegClose');
   btnRegClose.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); closeDialog(regDialog); });
-  wireDialogCloseUX(regDialog); // backdrop + Esc
+  wireDialogCloseUX(regDialog);
 
   async function openRegs(eventId){
     try{
@@ -287,9 +287,8 @@
     }catch(e){ console.error(e); toast('No se pudo cargar inscritos'); }
   }
 
-  // ---------- USERS (RTDB: only dni & stCode) ----------
+  // ---------- USERS ----------
   const usrEmail = $('#usrEmail');
-  const usrDni   = $('#usrDni');
   const usrCode  = $('#usrCode');
   const usrSearch= $('#usrSearch');
   const userMsg  = $('#userMsg');
@@ -326,44 +325,24 @@
         <td>${esc(u.stCode||'')}</td>
         <td>${esc(u.dni||'')}</td>
         <td style="text-align:right">
-          <button class="btn danger" data-del="${u.uid}" data-dni="${esc(u.dni||'')}">Eliminar</button>
+          <button class="btn danger" data-del="${u.uid}">Eliminar</button>
         </td>
       </tr>
     `).join('');
 
     emptyUsers.classList.toggle('hidden', items.length>0);
 
-    // bind delete buttons
     usersTableBody.querySelectorAll('[data-del]').forEach(btn=>{
       btn.addEventListener('click', async ()=>{
         const uid = btn.getAttribute('data-del');
-        let dni   = btn.getAttribute('data-dni') || '';
-
         if(!confirm('¿Eliminar este usuario? Esto borrará su cuenta y su nodo en /users.')) return;
-
-        // Need email to delete Auth account; ask admin.
-        const email = prompt('Email del usuario a eliminar (requerido):','') || '';
-        if(!email){ toast('Email requerido para eliminar'); return; }
-
         try{
-          if(!dni){
-            const s = await db.ref('users').child(uid).child('dni').get();
-            dni = s.val() || '';
-          }
-          if(!dni){ toast('No se encontró DNI (contraseña)'); return; }
-
-          await secAuth.signInWithEmailAndPassword(email, dni);
-          const u = secAuth.currentUser;
-          if(u && u.uid === uid) {
-            await u.delete();
-          }
-          await db.ref('users').child(uid).remove();
-          await secAuth.signOut();
-
+          // Server-side delete (admin token)
+          await api(`/admin/users/${encodeURIComponent(uid)}`, { method: 'DELETE' });
           toast('Usuario eliminado');
         }catch(err){
           console.error(err);
-          toast('No se pudo eliminar. Si la contraseña cambió, restablézcala desde Firebase Console.');
+          toast('No se pudo eliminar (revisa permisos del backend).');
         }
       });
     });
@@ -371,28 +350,19 @@
 
   async function addUser(){
     const email = usrEmail.value.trim();
-    const dni   = usrDni.value.trim();
     const code  = usrCode.value.trim();
-
     userMsg.textContent = '';
-    if(!email || !dni || !code){ userMsg.textContent = 'Email, DNI y stCode son requeridos.'; return; }
+    if(!email || !code){ userMsg.textContent = 'Email y stCode requeridos.'; return; }
 
     try{
-      // 1) Create Auth user (password = DNI)
-      const cred = await secAuth.createUserWithEmailAndPassword(email, dni);
-      const uid  = cred.user.uid;
-
-      // 2) Write only dni & stCode into RTDB
-      await db.ref('users').child(uid).set({
-        dni: String(dni),
-        stCode: String(code)
+      // Create via backend; sends password reset link
+      await api('/admin/users', {
+        method: 'POST',
+        body: JSON.stringify({ email, displayName: '', stCode: code, role: 'student' })
       });
 
-      // 3) Sign out secondary session
-      await secAuth.signOut();
-
-      usrEmail.value = ''; usrDni.value = ''; usrCode.value = '';
-      userMsg.textContent = 'Usuario creado correctamente.';
+      usrEmail.value = ''; usrCode.value = '';
+      userMsg.textContent = 'Usuario creado. Se envió enlace de restablecer contraseña.';
       toast('Usuario creado');
     }catch(e){
       console.error(e);
@@ -402,7 +372,6 @@
 
   // ---------- Dialog helpers ----------
   function wireDialogCloseUX(dialogEl){
-    // Close when clicking backdrop (outside the inner .card)
     dialogEl.addEventListener('click', (e)=>{
       const card = dialogEl.querySelector('.card');
       if(!card) return;
@@ -410,7 +379,6 @@
       const inBox = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
       if(!inBox) closeDialog(dialogEl);
     });
-    // Esc key (native closes; ensure cleanup)
     dialogEl.addEventListener('cancel', ()=> closeDialog(dialogEl));
   }
   function closeDialog(d){
