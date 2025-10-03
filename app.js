@@ -67,23 +67,28 @@
   }
   function logout(){ auth.signOut(); setNavVisibility(false,false); }
 
-  auth.onAuthStateChanged(async (user) => {
-  currentUser = user || null;
-  whoEl.textContent = user ? (user.email || '') : '';
-  isAdmin = false;
+  auth.onAuthStateChanged(async (user)=>{
+    currentUser = user || null;
+    whoEl.textContent = user ? (user.email || '') : '';
+    isAdmin = false;
 
-  if (!user) { showSection('auth'); setNavVisibility(false,false); return; }
+    if(!user){
+      showSection('auth'); setNavVisibility(false,false);
+      return;
+    }
+    try {
+      // Only admins can use the site (other users can exist without "role")
+      const snap = await db.ref('users').child(user.uid).get();
+      const role = (snap.val() && (snap.val().role || '')).toString().trim().toLowerCase();
+      isAdmin = (role === 'admin');
+    } catch(e) { console.warn('role load failed', e); }
 
-  // NEW: trust only the ID token's custom claims
-  const token = await user.getIdTokenResult(true);
-  isAdmin = !!token.claims.admin;
+    if(!isAdmin){ showSection('noaccess'); setNavVisibility(true,false); return; }
 
-  if (!isAdmin) { showSection('noaccess'); setNavVisibility(true,false); return; }
-
-  setNavVisibility(true,true);
-  showSection('events');
-  subscribeEvents(true);
-});
+    setNavVisibility(true,true);
+    showSection('events');
+    subscribeEvents(true);
+  });
 
   function showSection(which){
     [authCard, eventsView, usersView, noAccess].forEach(s=>s.classList.add('hidden'));
