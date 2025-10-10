@@ -1,11 +1,10 @@
 // UMA Admin Web (Vanilla JS, Firebase compat v10).
-// Light theme compatible. Events + Users (users store only {dni, stCode}).
-// Adds robust dialog close (button, Esc, and backdrop click) and forces "start logged out".
+// Events + Users; adds Unsplash integration powered by env-injected config.js.
 (function(){
   const cfg = window.umaConfig && window.umaConfig.firebase;
   if(!cfg){ console.error("Missing config.js"); }
 
-  // Init Firebase
+  // ===== Firebase =====
   const app = firebase.initializeApp(cfg);
   const auth = firebase.auth();
   const db   = firebase.database();
@@ -15,11 +14,10 @@
   const secApp  = firebase.apps.find(a => a.name === 'sec') || firebase.initializeApp(cfg, 'sec');
   const secAuth = secApp.auth();
 
-  // ----- Force "start logged out" (no persisted session) -----
+  // Force "start logged out"
   auth.setPersistence(firebase.auth.Auth.Persistence.NONE)
     .then(() => { if (auth.currentUser) return auth.signOut(); })
     .catch((e)=> console.warn('setPersistence (main) failed', e));
-
   secAuth.setPersistence(firebase.auth.Auth.Persistence.NONE)
     .catch((e)=> console.warn('setPersistence (sec) failed', e));
 
@@ -45,7 +43,6 @@
   function toast(msg){ const m = el(`<div class="toast card">${msg}</div>`); document.body.appendChild(m); setTimeout(()=>m.remove(),2500); }
   function fmtDate(ts){ if(!ts) return '—'; const d=new Date(ts); return d.toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }
 
-  // navbar visibility
   function setNavVisibility(loggedIn, admin) {
     [btnShowEvents, btnShowUsers, btnLogout].forEach(b =>
       b.classList.toggle('hidden', !(loggedIn && admin))
@@ -77,7 +74,6 @@
       return;
     }
     try {
-      // Only admins can use the site (other users can exist without "role")
       const snap = await db.ref('users').child(user.uid).get();
       const role = (snap.val() && (snap.val().role || '')).toString().trim().toLowerCase();
       isAdmin = (role === 'admin');
@@ -109,7 +105,7 @@
   const btnDeleteEvent = $('#btnDeleteEvent');
   const btnDlgClose = $('#dlgClose');
   btnDlgClose.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); closeDialog(eventDialog); });
-  wireDialogCloseUX(eventDialog); // backdrop click + Esc
+  wireDialogCloseUX(eventDialog);
 
   const evTitle = $('#evTitle');
   const evDesc  = $('#evDesc');
@@ -120,11 +116,104 @@
   const evStatus= $('#evStatus');
   const evImage = $('#evImage');
   const evPreview= $('#evPreview');
+  const btnSuggestImage = $('#btnSuggestImage');
 
   let currentEventId = null;
   let currentImageFile = null;
   const EVENTS_PATH = 'events';
   let eventsRef = null;
+
+  // ===== Unsplash integration =====
+  const UNSPLASH_KEY = (window.umaConfig && window.umaConfig.unsplashAccessKey) || null;
+  const AUTO_UNSPLASH_IF_NO_IMAGE = true;
+  let currentSuggestedAttribution = null;
+
+  async function getUnsplashPhotoViaAPI(query) {
+    const url = `https://api.unsplash.com/photos/random?count=1&orientation=landscape&content_filter=high&query=${encodeURIComponent(query)}`;
+    const r = await fetch(url, { headers: { Authorization: `Client-ID ${UNSPLASH_KEY}` } });
+    if (!r.ok) throw new Error(`Unsplash API error: ${r.status}`);
+    const data = await r.json();
+    const p = Array.isArray(data) ? data[0] : data;
+
+    // Track download per API guidelines
+    try {
+      if (p && p.links && p.links.download_location) {
+        await fetch(p.links.download_location, { headers: { Authorization: `Client-ID ${UNSPLASH_KEY}` } });
+      }
+    } catch(_) {}
+
+    return {
+      downloadUrl: p.urls && (p.urls.full || p.urls.regular || p.urls.small),
+      photoId: p.id,
+      authorName: p.user?.name || '',
+      authorLink: p.user?.links?.html || '',
+      photoLink: p.links?.html || ''
+    };
+  }
+
+  async function getUnsplashBlobNoKey(query) {
+    const src = `https://source.unsplash.com/featured/1200x800?${encodeURIComponent(query)}&sig=${Date.now()}`;
+    const r = await fetch(src, { redirect: 'follow', cache: 'no-store' });
+    if (!r.ok) throw new Error(`Unsplash Source error: ${r.status}`);
+    const blob = await r.blob();
+    let fileName = 'unsplash.jpg';
+    const m = (r.url || '').match(/photo-([A-Za-z0-9_-]+)/);
+    if (m) fileName = `unsplash_${m[1]}.jpg`;
+    return { blob, fileName };
+  }
+
+  async function suggestImageFromUnsplash(auto = false){
+    const tags = (evTags.value || '').split(',').map(s=>s.trim()).filter(Boolean);
+    const query = tags.length ? tags.join(',') : (evTitle.value.trim() || 'university,event');
+
+    if(!UNSPLASH_KEY){
+      try {
+        if(!auto){ btnSuggestImage.disabled = true; btnSuggestImage.textContent = 'Buscando...'; }
+        const got = await getUnsplashBlobNoKey(query);
+        const file = new File([got.blob], got.fileName, { type: got.blob.type || 'image/jpeg' });
+        currentImageFile = file;
+        evPreview.src = URL.createObjectURL(got.blob);
+        evPreview.classList.remove('hidden');
+        currentSuggestedAttribution = null;
+        if(!auto) toast('Imagen sugerida lista.');
+      } catch(e){
+        console.error(e);
+        if(!auto) toast('No se pudo obtener imagen de Unsplash.');
+      } finally {
+        if(!auto){ btnSuggestImage.disabled = false; btnSuggestImage.textContent = 'Sugerir desde Unsplash'; }
+      }
+      return;
+    }
+
+    try{
+      if(!auto){ btnSuggestImage.disabled = true; btnSuggestImage.textContent = 'Buscando...'; }
+      const p = await getUnsplashPhotoViaAPI(query);
+      const r = await fetch(p.downloadUrl, { cache: 'no-store' });
+      if (!r.ok) throw new Error(`Unsplash image fetch error: ${r.status}`);
+      const blob = await r.blob();
+      const filename = `unsplash_${p.photoId || Date.now()}.jpg`;
+      currentImageFile = new File([blob], filename, { type: blob.type || 'image/jpeg' });
+
+      currentSuggestedAttribution = {
+        source: 'Unsplash',
+        authorName: p.authorName,
+        authorLink: p.authorLink,
+        photoLink: p.photoLink,
+        photoId: p.photoId
+      };
+
+      evPreview.src = URL.createObjectURL(blob);
+      evPreview.classList.remove('hidden');
+      if(!auto) toast('Imagen sugerida lista.');
+    } catch(e){
+      console.error(e);
+      if(!auto) toast('No se pudo obtener imagen de Unsplash.');
+    } finally {
+      if(!auto){ btnSuggestImage.disabled = false; btnSuggestImage.textContent = 'Sugerir desde Unsplash'; }
+    }
+  }
+
+  btnSuggestImage?.addEventListener('click', ()=> suggestImageFromUnsplash(false));
 
   evImage.addEventListener('change', (e)=>{
     const file = e.target.files && e.target.files[0];
@@ -132,6 +221,7 @@
     if(file){
       const url = URL.createObjectURL(file);
       evPreview.src = url; evPreview.classList.remove('hidden');
+      currentSuggestedAttribution = null;
     } else {
       evPreview.classList.add('hidden'); evPreview.removeAttribute('src');
     }
@@ -186,6 +276,7 @@
   function openEventDialog(ev){
     currentEventId = ev && ev.id || null;
     currentImageFile = null;
+    currentSuggestedAttribution = null;
     $('#dlgTitle').textContent = currentEventId ? 'Editar evento' : 'Crear evento';
     btnDeleteEvent.classList.toggle('hidden', !currentEventId);
     evTitle.value = (ev && ev.title) || '';
@@ -221,31 +312,71 @@
     if(!evId){ toast('No se pudo generar ID'); return; }
 
     try{
+      // Auto Unsplash if no file chosen
+      if(AUTO_UNSPLASH_IF_NO_IMAGE && !currentImageFile && tags.length){
+        await suggestImageFromUnsplash(true);
+      }
+
+      // Keep creator metadata if editing
       let createdBy = currentUser.uid;
       let createdAt = Date.now();
       if(currentEventId){
-        const cb = await db.ref('events').child(evId).child('createdBy').get();
+        const [cb, ca] = await Promise.all([
+          db.ref('events').child(evId).child('createdBy').get(),
+          db.ref('events').child(evId).child('createdAt').get()
+        ]);
         if(cb.exists()) createdBy = cb.val();
-        const ca = await db.ref('events').child(evId).child('createdAt').get();
         if(ca.exists()) createdAt = ca.val();
       }
 
+      // Upload image if provided/auto-suggested
       let imageUrl = '';
       if(currentImageFile){
-        const ref = storage.ref(`event_images/${evId}.jpg`);
-        await ref.put(currentImageFile); imageUrl = await ref.getDownloadURL();
+        const safeName = (currentImageFile.name || 'image.jpg').replace(/[^\w.\-]/g,'_');
+        const storageRef = storage.ref().child(`event_images/${evId}/${Date.now()}_${safeName}`);
+        const metadata = {
+          contentType: currentImageFile.type || 'image/jpeg',
+          cacheControl: 'public,max-age=31536000,immutable'
+        };
+
+        btnSaveEvent.disabled = true;
+        btnSaveEvent.textContent = 'Subiendo imagen...';
+
+        const task = storageRef.put(currentImageFile, metadata);
+        await new Promise((resolve, reject)=>{
+          task.on('state_changed', null, reject, resolve);
+        });
+
+        imageUrl = await storageRef.getDownloadURL();
+
+        btnSaveEvent.disabled = false;
+        btnSaveEvent.textContent = 'Guardar';
       } else if(currentEventId){
         const s = await db.ref('events').child(evId).child('imageUrl').get();
         imageUrl = s.val() || '';
+      } else {
+        imageUrl = '';
       }
 
-      await db.ref('events').child(evId).set({
+      const payload = {
         id: evId, title, description: desc, location: loc, tags, status,
         startAt, imageUrl, createdBy, createdAt
-      });
+      };
+      if (currentSuggestedAttribution) {
+        payload.imageCredit = currentSuggestedAttribution;
+      }
+
+      await db.ref('events').child(evId).set(payload);
 
       toast('Evento guardado'); closeDialog(eventDialog);
-    }catch(e){ console.error(e); toast('Error guardando evento'); }
+    }catch(e){
+      console.error('Error guardando/subiendo:', e.code || e.name, e.message || e);
+      btnSaveEvent.disabled = false;
+      btnSaveEvent.textContent = 'Guardar';
+      toast(e.code === 'storage/unauthorized'
+        ? 'No autorizado para subir a Storage (revisa App Check / reglas).'
+        : 'Error guardando evento o subiendo imagen');
+    }
   }
 
   function confirmDelete(id){ if(confirm('¿Eliminar este evento?')) deleteEvent(id); }
@@ -254,7 +385,17 @@
     if(!id) return;
     try{
       await db.ref('events').child(id).remove();
-      try{ await storage.ref(`event_images/${id}.jpg`).delete(); }catch(_){}
+
+      // Delete entire folder event_images/{id}
+      try {
+        const folderRef = storage.ref().child(`event_images/${id}`);
+        const list = await folderRef.listAll();
+        await Promise.all(list.items.map(itemRef => itemRef.delete()));
+      } catch(_) {
+        // Legacy single-file path fallback
+        try{ await storage.ref(`event_images/${id}.jpg`).delete(); }catch(_){}
+      }
+
       toast('Evento eliminado'); closeDialog(eventDialog);
     }catch(e){ console.error(e); toast('Error eliminando'); }
   }
@@ -263,7 +404,7 @@
   const regDialog = $('#regDialog');
   const btnRegClose = $('#dlgRegClose');
   btnRegClose.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); closeDialog(regDialog); });
-  wireDialogCloseUX(regDialog); // backdrop + Esc
+  wireDialogCloseUX(regDialog);
 
   async function openRegs(eventId){
     try{
@@ -287,7 +428,7 @@
     }catch(e){ console.error(e); toast('No se pudo cargar inscritos'); }
   }
 
-  // ---------- USERS (RTDB: only dni & stCode) ----------
+  // ---------- USERS ----------
   const usrEmail = $('#usrEmail');
   const usrDni   = $('#usrDni');
   const usrCode  = $('#usrCode');
@@ -333,7 +474,6 @@
 
     emptyUsers.classList.toggle('hidden', items.length>0);
 
-    // bind delete buttons
     usersTableBody.querySelectorAll('[data-del]').forEach(btn=>{
       btn.addEventListener('click', async ()=>{
         const uid = btn.getAttribute('data-del');
@@ -341,7 +481,6 @@
 
         if(!confirm('¿Eliminar este usuario? Esto borrará su cuenta y su nodo en /users.')) return;
 
-        // Need email to delete Auth account; ask admin.
         const email = prompt('Email del usuario a eliminar (requerido):','') || '';
         if(!email){ toast('Email requerido para eliminar'); return; }
 
@@ -378,17 +517,14 @@
     if(!email || !dni || !code){ userMsg.textContent = 'Email, DNI y stCode son requeridos.'; return; }
 
     try{
-      // 1) Create Auth user (password = DNI)
       const cred = await secAuth.createUserWithEmailAndPassword(email, dni);
       const uid  = cred.user.uid;
 
-      // 2) Write only dni & stCode into RTDB
       await db.ref('users').child(uid).set({
         dni: String(dni),
         stCode: String(code)
       });
 
-      // 3) Sign out secondary session
       await secAuth.signOut();
 
       usrEmail.value = ''; usrDni.value = ''; usrCode.value = '';
@@ -402,7 +538,6 @@
 
   // ---------- Dialog helpers ----------
   function wireDialogCloseUX(dialogEl){
-    // Close when clicking backdrop (outside the inner .card)
     dialogEl.addEventListener('click', (e)=>{
       const card = dialogEl.querySelector('.card');
       if(!card) return;
@@ -410,7 +545,6 @@
       const inBox = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
       if(!inBox) closeDialog(dialogEl);
     });
-    // Esc key (native closes; ensure cleanup)
     dialogEl.addEventListener('cancel', ()=> closeDialog(dialogEl));
   }
   function closeDialog(d){

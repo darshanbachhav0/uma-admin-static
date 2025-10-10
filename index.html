@@ -11,7 +11,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
-  <!-- Your Firebase config -->
+
+  <!-- Your build-generated config -->
   <script src="config.js"></script>
 </head>
 <body>
@@ -24,7 +25,6 @@
 
     <nav class="nav">
       <span id="who" class="muted"></span>
-      <!-- hidden until admin login -->
       <button id="btnShowEvents" class="btn ghost hidden">Eventos</button>
       <button id="btnShowUsers"  class="btn ghost hidden">Usuarios</button>
       <button id="btnLogout"     class="btn ghost hidden">Cerrar sesión</button>
@@ -164,6 +164,14 @@
             <label for="evImage">Imagen</label>
             <input id="evImage" type="file" accept="image/*"/>
             <img id="evPreview" class="preview hidden" alt="Vista previa"/>
+
+            <!-- Unsplash -->
+            <button id="btnSuggestImage" type="button" class="btn ghost" style="margin-top:8px">
+              Sugerir desde Unsplash
+            </button>
+            <small class="muted" style="display:block;margin-top:6px">
+              Usa las etiquetas para buscar una imagen relacionada.
+            </small>
           </div>
         </div>
 
