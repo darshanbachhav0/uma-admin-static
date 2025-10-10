@@ -10,7 +10,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+  <!-- storage sdk can stay or be removed; not used anymore -->
+  <!-- <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script> -->
 
   <!-- Your build-generated config -->
   <script src="config.js"></script>
@@ -160,17 +161,15 @@
             <input id="evTags" type="text" placeholder="salud, charla, feria"/>
           </div>
 
+          <!-- *** Image: link-only via Unsplash suggestion *** -->
           <div class="full">
-            <label for="evImage">Imagen</label>
-            <input id="evImage" type="file" accept="image/*"/>
+            <label>Imagen (enlace externo)</label>
             <img id="evPreview" class="preview hidden" alt="Vista previa"/>
-
-            <!-- Unsplash -->
             <button id="btnSuggestImage" type="button" class="btn ghost" style="margin-top:8px">
               Sugerir desde Unsplash
             </button>
             <small class="muted" style="display:block;margin-top:6px">
-              Usa las etiquetas para buscar una imagen relacionada.
+              La imagen se guardará como <b>URL externa</b> (no se sube a Firebase Storage).
             </small>
           </div>
         </div>
