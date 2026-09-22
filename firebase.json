@@ -1,0 +1,18 @@
+{
+  "database": {
+    "rules": "database.rules.json"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "admin",
+      "ignore": ["node_modules", ".git", "*.log"]
+    }
+  ],
+  "emulators": {
+    "auth": { "port": 9099 },
+    "functions": { "port": 5001 },
+    "database": { "port": 9000 },
+    "ui": { "enabled": true }
+  }
+}

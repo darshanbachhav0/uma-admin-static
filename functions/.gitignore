@@ -1,0 +1,8 @@
+node_modules/
+*.log
+.env
+.env.*
+!.env.example
+# Never commit service-account credentials.
+*serviceAccount*.json
+*service-account*.json

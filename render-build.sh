@@ -1,23 +1,17 @@
 #!/usr/bin/env bash
-# Robust root-level build script for Render Static Site
-# - Validates required env vars
-# - Generates config.js next to index.html (from config.template.js via envsubst)
-# - Strips CRLF if the file was edited on Windows
+# Build script for the UMA Admin static site (Render).
+#
+# Generates config.js next to index.html from environment variables. Only
+# public browser configuration is written; service credentials must never be
+# referenced here.
 set -euo pipefail
 
-# Normalize line endings for this script if needed
-if file "$0" | grep -qi "CRLF"; then
-  sed -i 's/\r$//' "$0"
-fi
-
-# Ensure index.html exists at repo root
 if [ ! -f "index.html" ]; then
-  echo "❌ index.html not found at repo root."
-  echo "   If your files live in a subfolder, set Render 'Publish directory' to that folder."
+  echo "index.html not found at the publish root."
+  echo "If the files live in a subfolder, set Render's 'Publish directory' to that folder."
   exit 1
 fi
 
-# Required env vars (web Firebase config is expected to be public post-build)
 required_vars=(
   FIREBASE_API_KEY
   FIREBASE_AUTH_DOMAIN
@@ -29,29 +23,32 @@ required_vars=(
   FIREBASE_MEASUREMENT_ID
 )
 
-for v in "${required_vars[@]}"; do
-  if [ -z "${!v:-}" ]; then
-    echo "❌ Missing required env var: $v"
-    MISSING=1
+missing=0
+for var in "${required_vars[@]}"; do
+  if [ -z "${!var:-}" ]; then
+    echo "Missing required environment variable: $var"
+    missing=1
   fi
 done
-if [ "${MISSING:-0}" = "1" ]; then
+if [ "$missing" = "1" ]; then
   exit 2
 fi
 
-# Optional Unsplash key (warn only)
+# Region where `firebase deploy --only functions` published the admin backend.
+export FUNCTIONS_REGION="${FUNCTIONS_REGION:-us-central1}"
+
 if [ -z "${UNSPLASH_ACCESS_KEY:-}" ]; then
-  echo "ℹ️  UNSPLASH_ACCESS_KEY not provided — app will use no-key fallback (source.unsplash.com)."
+  echo "UNSPLASH_ACCESS_KEY not set — event image suggestions will run in limited mode."
+  export UNSPLASH_ACCESS_KEY=""
 fi
 
-# Prefer envsubst with template if available
 if command -v envsubst >/dev/null 2>&1 && [ -f "config.template.js" ]; then
-  echo "ℹ️ Using envsubst on config.template.js"
+  echo "Generating config.js with envsubst"
   envsubst < config.template.js > config.js
 else
-  echo "ℹ️ Generating config.js via heredoc fallback"
+  echo "Generating config.js with the heredoc fallback"
   cat > config.js <<EOF
-// generated at build time
+// Generated at build time. Public browser configuration only.
 window.umaConfig = {
   firebase: {
     apiKey:            "${FIREBASE_API_KEY}",
@@ -63,14 +60,13 @@ window.umaConfig = {
     appId:             "${FIREBASE_APP_ID}",
     measurementId:     "${FIREBASE_MEASUREMENT_ID}"
   },
-  unsplashAccessKey:  "${UNSPLASH_ACCESS_KEY:-}"
+  functionsRegion: "${FUNCTIONS_REGION}",
+  unsplashAccessKey: "${UNSPLASH_ACCESS_KEY}"
 };
 EOF
 fi
 
-# Optionally remove the template from the published output (keeps repo clean at runtime)
-if [ -f "config.template.js" ]; then
-  rm -f config.template.js || true
-fi
+# The template is not needed in the published output.
+rm -f config.template.js || true
 
-echo "✅ Generated config.js"
+echo "Generated config.js"
