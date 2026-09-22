@@ -1,15 +1,35 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <!--
+    Apply the stored appearance preference before any stylesheet paints, so
+    there is no flash of the light theme for administrators who chose dark.
+    Kept in sync with js/core/theme.js — update both if this logic changes.
+  -->
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem('uma.theme');
+        var resolved = theme === 'dark' || theme === 'light'
+          ? theme
+          : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', resolved);
+        if (localStorage.getItem('uma.density') === 'compact') {
+          document.documentElement.setAttribute('data-density', 'compact');
+        }
+      } catch (e) { /* storage unavailable (private mode, etc.) — light theme stays the default */ }
+    })();
+  </script>
+
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="color-scheme" content="light" />
+  <meta name="color-scheme" content="light dark" />
   <meta name="theme-color" content="#e11d48" />
-  <meta name="description" content="Consola de administración de la Universidad María Auxiliadora: eventos, inscripciones y usuarios." />
+  <meta name="description" content="Consola de administración de eventos de la Universidad María Auxiliadora." />
   <meta name="robots" content="noindex, nofollow" />
   <title>UMA Admin</title>
 
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23e11d48'/%3E%3Ctext x='16' y='21' font-family='system-ui,sans-serif' font-size='12' font-weight='700' fill='white' text-anchor='middle'%3EU%3C/text%3E%3C/svg%3E" />
+  <link rel="icon" href="assets/uma-logo.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -25,7 +45,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
 
   <!-- Generated at build time by render-build.sh from environment variables. -->
   <script src="config.js"></script>
@@ -40,7 +59,7 @@
   <div id="app">
     <!-- Replaced by the application once the session has been resolved. -->
     <div class="boot" role="status" aria-live="polite">
-      <span class="brand-mark">UMA</span>
+      <img class="boot__logo" src="assets/uma-logo.jpg" alt="Universidad María Auxiliadora" />
       <span class="spinner" style="color: var(--text-tertiary)"></span>
       <p class="boot__text">Cargando la consola…</p>
     </div>

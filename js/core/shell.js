@@ -9,18 +9,16 @@ import { icon } from '../ui/icons.js';
 import { attachMenu } from '../ui/menu.js';
 import { navigate, parseHash } from './router.js';
 import { getSession, signOut } from './session.js';
+import { getSidebarCollapsed, setSidebarCollapsed } from './theme.js';
 import { initials } from '../utils/format.js';
 import { notify } from '../ui/toast.js';
-
-const COLLAPSE_KEY = 'uma.sidebar.collapsed';
 
 export const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: 'layout-dashboard' },
   { path: '/eventos', label: 'Eventos', icon: 'calendar-days' },
   { path: '/inscripciones', label: 'Inscripciones', icon: 'clipboard-list' },
-  { path: '/usuarios', label: 'Usuarios', icon: 'users' },
   { path: '/auditoria', label: 'Auditoría', icon: 'scroll-text' },
-  { path: '/ajustes', label: 'Ajustes', icon: 'settings' },
+  { path: '/configuracion', label: 'Configuración', icon: 'settings' },
 ];
 
 let shell = null;
@@ -67,7 +65,7 @@ export function renderShell(root) {
     const { user } = getSession();
     return [
       { heading: user && user.email ? user.email : 'Sesión' },
-      { label: 'Ajustes de la consola', icon: 'settings', onSelect: () => navigate('/ajustes') },
+      { label: 'Configuración', icon: 'settings', onSelect: () => navigate('/configuracion') },
       { separator: true },
       {
         label: 'Cerrar sesión',
@@ -86,10 +84,12 @@ export function renderShell(root) {
   const sidebar = h('aside', { class: 'sidebar', id: 'sidebar' },
     h('div', { class: 'sidebar__head' },
       h('div', { class: 'brand-lockup' },
-        h('span', { class: 'brand-mark', text: 'UMA' }),
-        h('span', { class: 'brand-text' },
-          h('span', { class: 'brand-text__name', text: 'UMA Admin' }),
-          h('span', { class: 'brand-text__sub', text: 'Consola institucional' }))),
+        h('img', {
+          class: 'brand-logo',
+          src: 'assets/uma-logo.jpg',
+          alt: 'Universidad María Auxiliadora',
+        }),
+        h('span', { class: 'brand-mark brand-mark--compact', 'aria-hidden': 'true', text: 'UMA' })),
       collapseBtn),
     nav,
     h('div', { class: 'sidebar__foot' }, profileBtn));
@@ -176,20 +176,23 @@ export function renderShell(root) {
   desktopQuery.addEventListener('change', (event) => { if (event.matches) closeDrawer(); });
 
   // ---- Collapse (desktop) ----------------------------------------------
+  // The preference is shared with the Apariencia section in Configuración:
+  // both read/write it through core/theme.js and stay in sync via the
+  // `uma:sidebar-collapse-change` event.
   function applyCollapsed(collapsed) {
     appShell.classList.toggle('is-collapsed', collapsed);
     collapseBtn.setAttribute('aria-label', collapsed ? 'Expandir menú lateral' : 'Contraer menú lateral');
     collapseBtn.title = collapsed ? 'Expandir menú' : 'Contraer menú';
   }
 
-  let collapsed = false;
-  try { collapsed = localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { collapsed = false; }
-  applyCollapsed(collapsed);
+  applyCollapsed(getSidebarCollapsed());
 
   collapseBtn.addEventListener('click', () => {
-    collapsed = !collapsed;
-    applyCollapsed(collapsed);
-    try { localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0'); } catch { /* storage unavailable */ }
+    applyCollapsed(setSidebarCollapsed(!appShell.classList.contains('is-collapsed')));
+  });
+
+  document.addEventListener('uma:sidebar-collapse-change', (event) => {
+    applyCollapsed(event.detail.collapsed);
   });
 
   shell = {

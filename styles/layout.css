@@ -15,6 +15,7 @@
   background: var(--background);
   color: var(--text-secondary);
 }
+.boot__logo { width: min(220px, 70vw); height: auto; }
 .boot__text { font-size: var(--text-sm); }
 
 /* ---------- Auth screen ------------------------------------------------ */
@@ -32,7 +33,17 @@
   background: linear-gradient(160deg, var(--brand-600), var(--brand-700) 70%);
   color: var(--text-inverse);
 }
-.auth-screen__aside-title { font-size: var(--text-3xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); letter-spacing: -.02em; max-width: 16ch; }
+.auth-screen__logo-card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, .96);
+  width: fit-content;
+}
+.auth-screen__logo { height: 40px; width: auto; display: block; }
+.auth-screen__aside-title { margin-top: var(--space-8); font-size: var(--text-3xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); letter-spacing: -.02em; max-width: 16ch; }
 .auth-screen__aside-text { margin-top: var(--space-4); font-size: var(--text-md); color: rgba(255, 255, 255, .82); max-width: 44ch; }
 .auth-screen__aside-list { margin-top: var(--space-8); display: flex; flex-direction: column; gap: var(--space-3); }
 .auth-screen__aside-list li { display: flex; align-items: center; gap: var(--space-3); font-size: var(--text-base); color: rgba(255, 255, 255, .88); }
@@ -44,12 +55,12 @@
   justify-content: center;
   padding: var(--space-6);
 }
-.auth-panel { width: min(400px, 100%); display: flex; flex-direction: column; gap: var(--space-6); }
-.auth-panel__head { display: flex; flex-direction: column; gap: var(--space-2); }
+.auth-panel { width: min(400px, 100%); display: flex; flex-direction: column; gap: var(--space-6); align-items: center; text-align: center; }
+.auth-panel__logo { height: 56px; width: auto; }
+.auth-panel__head { display: flex; flex-direction: column; gap: var(--space-1); align-items: center; }
 .auth-panel__title { font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: -.02em; }
 .auth-panel__subtitle { font-size: var(--text-base); color: var(--text-secondary); }
-.auth-panel__form { display: flex; flex-direction: column; gap: var(--space-4); }
-.auth-panel__foot { font-size: var(--text-xs); color: var(--text-tertiary); text-align: center; }
+.auth-panel__form { width: 100%; display: flex; flex-direction: column; gap: var(--space-4); text-align: left; }
 
 .alert {
   display: flex;
@@ -70,10 +81,14 @@
   .auth-screen__aside { display: flex; }
 }
 
-/* ---------- Brand lockup ----------------------------------------------- */
-.brand-lockup { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+/* ---------- Brand lockup (sidebar header) ------------------------------- */
+.brand-lockup { display: flex; align-items: center; min-width: 0; overflow: hidden; }
+/* Official logo, shown when the sidebar is expanded. */
+.brand-logo { height: 38px; width: auto; max-width: 100%; flex: none; }
+/* Compact square mark, shown only when the sidebar is collapsed to a rail
+   too narrow for the full wordmark logo. */
 .brand-mark {
-  display: inline-flex;
+  display: none;
   align-items: center;
   justify-content: center;
   width: 36px; height: 36px;
@@ -85,11 +100,6 @@
   font-weight: var(--weight-bold);
   letter-spacing: .02em;
 }
-.brand-mark--inverse { background: rgba(255, 255, 255, .16); }
-.brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
-.brand-text__name { font-size: var(--text-md); font-weight: var(--weight-semibold); }
-.brand-text__sub { font-size: var(--text-xs); color: var(--text-secondary); }
-.brand-lockup--inverse .brand-text__sub { color: rgba(255, 255, 255, .72); }
 
 /* ---------- App shell --------------------------------------------------- */
 .app-shell { display: flex; min-height: 100vh; }
@@ -177,10 +187,12 @@
 @media (min-width: 1000px) {
   .sidebar__collapse { display: inline-flex; }
   .app-shell.is-collapsed .sidebar { width: var(--sidebar-width-collapsed); }
-  .app-shell.is-collapsed .sidebar .brand-text,
+  .app-shell.is-collapsed .sidebar .brand-logo,
   .app-shell.is-collapsed .sidebar__link-label,
   .app-shell.is-collapsed .sidebar__profile-text,
   .app-shell.is-collapsed .sidebar__profile svg:last-child { display: none; }
+  /* Fall back to the compact square mark when the logo's wordmark no longer fits. */
+  .app-shell.is-collapsed .sidebar .brand-mark { display: inline-flex; }
   .app-shell.is-collapsed .sidebar__head { justify-content: center; padding: 0 var(--space-2); }
   .app-shell.is-collapsed .sidebar__collapse { margin-left: 0; }
   .app-shell.is-collapsed .sidebar__link { justify-content: center; padding: 0; }
@@ -223,7 +235,7 @@
   gap: var(--space-3);
   min-height: var(--topbar-height);
   padding: var(--space-2) var(--page-gutter);
-  background: rgba(255, 255, 255, .88);
+  background: var(--surface-translucent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
 }

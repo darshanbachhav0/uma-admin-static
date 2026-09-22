@@ -7,14 +7,13 @@
 import { h, replaceChildren, uid } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
 import { button, field, passwordInput, setButtonLoading, textInput } from '../ui/controls.js';
-import { notify } from '../ui/toast.js';
-import { signIn, sendPasswordReset } from '../core/session.js';
+import { signIn } from '../core/session.js';
 import { describeError, isEmail } from '../utils/validate.js';
 
 const HIGHLIGHTS = [
   { icon: 'calendar-days', text: 'Publica y actualiza los eventos institucionales' },
   { icon: 'clipboard-list', text: 'Consulta y exporta las inscripciones de estudiantes' },
-  { icon: 'shield-check', text: 'Administra cuentas con trazabilidad completa' },
+  { icon: 'scroll-text', text: 'Revisa el historial de cambios de cada evento' },
 ];
 
 export function renderLogin(root) {
@@ -45,14 +44,7 @@ export function renderLogin(root) {
     alertBox,
     emailField,
     passwordField,
-    submitBtn,
-    h('button', {
-      class: 'btn btn--ghost btn--sm',
-      type: 'button',
-      style: { 'align-self': 'center' },
-      onclick: () => requestReset(),
-      text: '¿Olvidaste tu contraseña?',
-    }));
+    submitBtn);
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -103,48 +95,24 @@ export function renderLogin(root) {
     }
   }
 
-  async function requestReset() {
-    const email = emailInput.value.trim();
-    emailField.clearError();
-    if (!isEmail(email)) {
-      emailField.setError('Escribe tu correo para enviarte el enlace de restablecimiento.');
-      emailInput.focus();
-      return;
-    }
-    try {
-      await sendPasswordReset(email);
-      notify.success(`Si existe una cuenta con ${email}, recibirás un enlace para restablecer tu contraseña.`);
-    } catch (error) {
-      console.error('[login] restablecimiento fallido', error);
-      notify.error(describeError(error, 'No se pudo enviar el enlace de restablecimiento.'));
-    }
-  }
-
   const screen = h('div', { class: 'auth-screen' },
     h('aside', { class: 'auth-screen__aside' },
-      h('div', { class: 'brand-lockup brand-lockup--inverse' },
-        h('span', { class: 'brand-mark brand-mark--inverse', text: 'UMA' }),
-        h('span', { class: 'brand-text' },
-          h('span', { class: 'brand-text__name', text: 'UMA Admin' }),
-          h('span', { class: 'brand-text__sub', text: 'Consola institucional' }))),
+      h('div', { class: 'auth-screen__logo-card' },
+        h('img', { class: 'auth-screen__logo', src: 'assets/uma-logo.jpg', alt: 'Universidad María Auxiliadora' })),
       h('div', null,
-        h('h1', { class: 'auth-screen__aside-title', text: 'Consola de administración universitaria' }),
-        h('p', { class: 'auth-screen__aside-text', text: 'Gestiona eventos, inscripciones y cuentas de la Universidad María Auxiliadora desde un solo lugar.' }),
+        h('h1', { class: 'auth-screen__aside-title', text: 'Panel administrativo de eventos' }),
+        h('p', { class: 'auth-screen__aside-text', text: 'Gestiona los eventos institucionales y sus inscripciones desde un solo lugar.' }),
         h('ul', { class: 'auth-screen__aside-list' },
           ...HIGHLIGHTS.map((item) => h('li', null, icon(item.icon, { size: 18 }), h('span', { text: item.text }))))),
       h('p', { class: 'auth-screen__aside-foot', text: 'Acceso restringido al personal autorizado.' })),
 
     h('div', { class: 'auth-screen__main' },
       h('div', { class: 'auth-panel' },
-        h('div', { class: 'brand-lockup', style: { 'margin-bottom': '8px' } },
-          h('span', { class: 'brand-mark', text: 'UMA' }),
-          h('span', { class: 'brand-text' },
-            h('span', { class: 'brand-text__name', text: 'UMA Admin' }))),
+        h('img', { class: 'auth-panel__logo', src: 'assets/uma-logo.jpg', alt: 'Universidad María Auxiliadora' }),
         h('div', { class: 'auth-panel__head' },
-          h('h2', { class: 'auth-panel__title', text: 'Iniciar sesión' }),
-          h('p', { class: 'auth-panel__subtitle', text: 'Usa tu cuenta institucional con permisos de administrador.' })),
-        form,
-        h('p', { class: 'auth-panel__foot', text: 'Universidad María Auxiliadora · Uso interno' }))));
+          h('h2', { class: 'auth-panel__title', text: 'Panel Administrativo' }),
+          h('p', { class: 'auth-panel__subtitle', text: 'Universidad María Auxiliadora' })),
+        form)));
 
   replaceChildren(root, screen);
   document.title = 'Iniciar sesión · UMA Admin';

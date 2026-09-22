@@ -1,11 +1,11 @@
 # UMA Admin
 
-Consola de administración de la Universidad María Auxiliadora: eventos,
-inscripciones, usuarios y auditoría.
+Panel administrativo de eventos de la Universidad María Auxiliadora: eventos,
+inscripciones y auditoría.
 
 Sitio estático (HTML + CSS + JavaScript con módulos ES, sin framework ni paso de
-compilación) sobre Firebase Authentication y Realtime Database, con un backend
-privilegiado en Cloud Functions.
+compilación) sobre Firebase Authentication y Realtime Database. No tiene
+backend propio: administra sesiones y datos directamente desde el navegador.
 
 ---
 
@@ -15,13 +15,15 @@ privilegiado en Cloud Functions.
 index.html                     Shell de la aplicación
 config.template.js             Plantilla de configuración pública (envsubst)
 render-build.sh                Genera config.js a partir de variables de entorno
+assets/uma-logo.jpg            Logo oficial de la Universidad María Auxiliadora
 
 styles/
-  tokens.css                   Design tokens (color, tipografía, espaciado, radios…)
+  tokens.css                   Design tokens (color, tipografía, espaciado, radios,
+                               temas claro/oscuro, densidad cómoda/compacta)
   base.css                     Reset, tipografía y utilidades
   components.css               Botones, campos, tablas, modales, toasts, menús…
   layout.css                   Login, sidebar, barra superior, shell
-  pages.css                    Composición de dashboard, eventos e importador
+  pages.css                    Composición de dashboard, eventos y configuración
 
 js/
   main.js                      Punto de entrada y estados de pantalla
@@ -31,21 +33,19 @@ js/
     store.js                   Suscripciones a la base de datos con recuento de referencias
     router.js                  Enrutador por hash con montaje/desmontaje
     shell.js                   Sidebar, barra superior, perfil
+    theme.js                   Tema, densidad y estado de la barra lateral (localStorage)
     prefs.js                   Preferencias locales de visualización
   ui/                          Componentes reutilizables (dom, icons, controls,
                                overlay, confirm, menu, toast, states, pagination, chart)
-  services/                    events, registrations (vía store), users (adminApi),
-                               audit, unsplash
+  services/                    events, registrations (vía store), audit, unsplash
   pages/                       login, dashboard, events, event-editor,
-                               registrations, users, user-dialogs, audit, settings
+                               registrations, audit, settings
   utils/                       format, validate, csv
 
-functions/                     Cloud Functions (Firebase Admin SDK)
 database.rules.json            Reglas de seguridad — perfil de compatibilidad
-database.rules.hardened.json   Reglas endurecidas — requiere migración
 firebase.json                  Configuración de despliegue
 docs/DEPLOYMENT.md             Pasos de despliegue
-docs/SECURITY.md               Modelo de seguridad y migraciones pendientes
+docs/SECURITY.md               Modelo de seguridad
 ```
 
 ## Desarrollo local
@@ -67,33 +67,44 @@ npx serve . -l 5173
 
 | Sección       | Ruta               | Contenido |
 |---------------|--------------------|-----------|
-| Dashboard     | `#/`               | KPIs, inscripciones por mes, estado de eventos, próximos eventos, actividad reciente |
+| Dashboard     | `#/`               | KPIs de eventos e inscripciones, gráfico mensual, estado de eventos, próximos eventos, actividad reciente |
 | Eventos       | `#/eventos`        | Búsqueda, filtros, orden, tarjetas, editor en panel lateral |
 | Inscripciones | `#/inscripciones`  | Tabla agregada de todos los eventos, filtros, exportación CSV |
-| Usuarios      | `#/usuarios`       | Tabla de cuentas, alta individual, importación CSV, acciones privilegiadas |
-| Auditoría     | `#/auditoria`      | Registro de acciones administrativas |
-| Ajustes       | `#/ajustes`        | Cuenta, estado del sistema, preferencias, exportaciones |
+| Auditoría     | `#/auditoria`      | Registro de acciones sobre eventos (creado, editado, eliminado, duplicado) |
+| Configuración | `#/configuracion`  | Cuenta, apariencia (tema, barra lateral, densidad), estado del sistema, exportaciones |
 
 Enlaces profundos admitidos: `#/eventos?nuevo=1`, `#/eventos?editar=<id>`,
 `#/inscripciones?evento=<id>`.
 
+## Apariencia
+
+La sección **Configuración → Apariencia** controla tres preferencias, guardadas
+en `localStorage` de ese navegador:
+
+- **Tema**: claro, oscuro o según el sistema operativo (se actualiza en vivo si
+  cambia la preferencia del sistema).
+- **Barra lateral**: expandida o colapsada a solo íconos; el mismo control que
+  el botón de la barra lateral.
+- **Densidad**: cómoda o compacta (reduce el alto de botones, campos y filas de
+  tabla).
+
 ## Modelo de datos
 
-La forma almacenada no cambió respecto de la versión anterior, para no romper la
-aplicación de estudiantes:
+La forma almacenada no cambió respecto de versiones anteriores, para no romper
+la aplicación de estudiantes:
 
 ```
 /events/{eventId}
   id, title, description, location, tags[], status, startAt, imageUrl,
-  imageCredit?, createdBy, createdAt, updatedAt (nuevo, opcional)
+  imageCredit?, createdBy, createdAt, updatedAt (opcional)
   /registrations/{key}
     name, code, dni, facultyName, specialtyName, semester, mode, email,
     phone, registeredAt, uid
 
 /users/{uid}
-  dni, stCode, role?, email (nuevo, opcional), createdAt?, createdBy?
+  dni, stCode, role?, email?, createdAt?, createdBy?
 
-/auditLogs/{entryId}          (nuevo)
+/auditLogs/{entryId}
   at, action, actorUid, actorEmail, targetType, targetId, targetLabel,
   source, meta?
 ```
@@ -102,10 +113,13 @@ aplicación de estudiantes:
 temporal que se ve en la interfaz (Programado / Hoy / Finalizado) se deriva de
 `startAt` y no se almacena.
 
+La consola **no** crea, edita ni elimina cuentas en `/users` — solo lee el rol
+de la persona que inició sesión. La administración de cuentas se hace
+directamente en Firebase Console.
+
 ## Seguridad
 
-Las operaciones privilegiadas sobre cuentas se ejecutan en Cloud Functions con
-el SDK de Firebase Admin. Consulta [docs/SECURITY.md](docs/SECURITY.md).
+Consulta [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Despliegue
 

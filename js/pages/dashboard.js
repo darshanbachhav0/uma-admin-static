@@ -10,14 +10,14 @@ import { icon } from '../ui/icons.js';
 import { button, card, kpi, badge } from '../ui/controls.js';
 import { emptyState, errorState, skeletonKpis, loadingState } from '../ui/states.js';
 import { barChart, distribution } from '../ui/chart.js';
-import { eventsStore, usersStore, auditStore, flattenRegistrations } from '../core/store.js';
+import { eventsStore, auditStore, flattenRegistrations } from '../core/store.js';
 import { setPageActions } from '../core/shell.js';
 import { navigate } from '../core/router.js';
 import { summarizeEvents, timing } from '../services/events.js';
 import { describeAction, actionIcon, actionTone } from '../services/audit.js';
 import {
   formatNumber, formatDateTime, formatRelative, formatMonth,
-  startOfMonth, addMonths, pluralize, EM_DASH,
+  startOfMonth, addMonths, pluralize,
 } from '../utils/format.js';
 
 const MONTHS_IN_CHART = 6;
@@ -36,7 +36,7 @@ export function mount(container) {
 
   setPageActions([
     button({
-      label: 'Nuevo evento',
+      label: 'Crear evento',
       variant: 'primary',
       icon: 'plus',
       onClick: () => navigate('/eventos', { nuevo: '1' }),
@@ -45,13 +45,11 @@ export function mount(container) {
 
   const state = {
     events: eventsStore.state,
-    users: usersStore.state,
     audit: auditStore.state,
   };
 
   const unsubscribes = [
     eventsStore.subscribe((next) => { state.events = next; render(); }),
-    usersStore.subscribe((next) => { state.users = next; render(); }),
     auditStore.subscribe((next) => { state.audit = next; render(); }),
   ];
 
@@ -88,13 +86,9 @@ export function mount(container) {
       kpi({ label: 'Eventos totales', value: formatNumber(summary.total), icon: 'calendar-days', tone: 'brand' }),
       kpi({ label: 'Próximos eventos', value: formatNumber(summary.upcoming), icon: 'clock', tone: 'info', hint: summary.undated ? `${pluralize(summary.undated, 'evento sin fecha', 'eventos sin fecha')}` : null }),
       kpi({ label: 'Eventos en curso', value: formatNumber(summary.ongoing), icon: 'activity', tone: 'success' }),
+      kpi({ label: 'Eventos completados', value: formatNumber(summary.past), icon: 'circle-check', tone: 'warning' }),
       kpi({ label: 'Inscripciones totales', value: formatNumber(registrations.length), icon: 'clipboard-list' }),
-      kpi({ label: 'Inscripciones este mes', value: formatNumber(thisMonth), icon: 'trending-up', tone: 'warning', hint: formatMonth(Date.now()) }),
-      kpi({
-        label: 'Usuarios registrados',
-        value: state.users.status === 'error' ? EM_DASH : formatNumber(state.users.items.length),
-        icon: 'users',
-      })));
+      kpi({ label: 'Inscripciones este mes', value: formatNumber(thisMonth), icon: 'trending-up', hint: formatMonth(Date.now()) })));
   }
 
   function renderAnalytics() {

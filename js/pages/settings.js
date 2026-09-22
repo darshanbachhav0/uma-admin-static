@@ -1,30 +1,45 @@
 /**
- * Settings.
+ * Configuración.
  *
- * Account details, a live check of the services the console depends on, display
- * preferences and data exports. No placeholder controls: everything here does
- * something.
+ * Cuenta del administrador, apariencia de la consola (tema, barra lateral,
+ * densidad), estado de los servicios de los que depende la app, y exportación
+ * de los datos de eventos e inscripciones. Cada control aquí funciona de
+ * verdad — no hay controles de relleno.
  */
 import { h, replaceChildren } from '../ui/dom.js';
-import { icon } from '../ui/icons.js';
-import { avatar, badge, button, card } from '../ui/controls.js';
+import { avatar, badge, button, card, segmentedControl } from '../ui/controls.js';
 import { notify } from '../ui/toast.js';
 import { getSession, refreshAuthorization, signOut } from '../core/session.js';
 import { setPageActions } from '../core/shell.js';
-import { DATABASE_URL, PROJECT_ID, FUNCTIONS_REGION } from '../core/firebase.js';
-import { eventsStore, usersStore, flattenRegistrations } from '../core/store.js';
-import { getPref, setPref } from '../core/prefs.js';
-import * as adminApi from '../services/adminApi.js';
+import { DATABASE_URL, PROJECT_ID } from '../core/firebase.js';
+import { eventsStore, flattenRegistrations } from '../core/store.js';
+import {
+  THEMES, DENSITIES, getThemePreference, setThemePreference,
+  getDensityPreference, setDensityPreference, getSidebarCollapsed, setSidebarCollapsed,
+} from '../core/theme.js';
 import { hasUnsplashKey } from '../services/unsplash.js';
-import { downloadTemplate } from './user-dialogs.js';
 import { toCsv, downloadFile, exportFilename } from '../utils/csv.js';
 import { describeError } from '../utils/validate.js';
 import { formatDateTime, formatNumber, initials, EM_DASH } from '../utils/format.js';
 
+const THEME_OPTIONS = [
+  { value: THEMES.LIGHT, label: 'Claro', icon: 'circle-check' },
+  { value: THEMES.DARK, label: 'Oscuro', icon: 'ban' },
+  { value: THEMES.SYSTEM, label: 'Sistema', icon: 'settings' },
+];
+
+const SIDEBAR_OPTIONS = [
+  { value: 'expanded', label: 'Expandido', icon: 'panel-left' },
+  { value: 'collapsed', label: 'Colapsado', icon: 'chevrons-right' },
+];
+
+const DENSITY_OPTIONS = [
+  { value: DENSITIES.COMFORTABLE, label: 'Cómodo' },
+  { value: DENSITIES.COMPACT, label: 'Compacto' },
+];
+
 export function mount(container) {
   const session = getSession();
-  const backendStatusSlot = h('span');
-  let backendChecked = false;
 
   const accountCard = card({
     title: 'Tu cuenta',
@@ -37,8 +52,8 @@ export function mount(container) {
       h('div', null,
         row('UID', h('code', { class: 'text-mono', text: session.user ? session.user.uid : EM_DASH })),
         row('Origen del permiso', session.roleSource === 'claim'
-          ? badge('Custom claim (recomendado)', 'success', { iconName: 'shield-check' })
-          : badge('Rol en la base de datos', 'warning', { iconName: 'database' })),
+          ? badge('Custom claim', 'success', { iconName: 'shield-check' })
+          : badge('Rol en la base de datos', 'info', { iconName: 'database' })),
         row('Último acceso', h('span', {
           text: session.user && session.user.metadata && session.user.metadata.lastSignInTime
             ? formatDateTime(session.user.metadata.lastSignInTime)
@@ -69,109 +84,80 @@ export function mount(container) {
       })),
   });
 
+  // ---- Apariencia --------------------------------------------------------
+  const themeControl = segmentedControl({
+    options: THEME_OPTIONS,
+    value: getThemePreference(),
+    ariaLabel: 'Tema de la consola',
+    onChange: (value) => {
+      setThemePreference(value);
+      notify.success(`Tema ${THEME_OPTIONS.find((o) => o.value === value).label.toLowerCase()} aplicado.`);
+    },
+  });
+
+  const sidebarControl = segmentedControl({
+    options: SIDEBAR_OPTIONS,
+    value: getSidebarCollapsed() ? 'collapsed' : 'expanded',
+    ariaLabel: 'Estado de la barra lateral',
+    onChange: (value) => {
+      setSidebarCollapsed(value === 'collapsed');
+    },
+  });
+
+  const densityControl = segmentedControl({
+    options: DENSITY_OPTIONS,
+    value: getDensityPreference(),
+    ariaLabel: 'Densidad de la interfaz',
+    onChange: (value) => {
+      setDensityPreference(value);
+      notify.success(value === DENSITIES.COMPACT ? 'Densidad compacta aplicada.' : 'Densidad cómoda aplicada.');
+    },
+  });
+
+  const appearanceCard = card({
+    title: 'Apariencia',
+    subtitle: 'Se guarda solo en este navegador',
+    body: h('div', { class: 'stack' },
+      appearanceRow('Tema', 'Claro, oscuro o según el sistema operativo.', themeControl),
+      appearanceRow('Barra lateral', 'Expandida con etiquetas, o colapsada a solo íconos.', sidebarControl),
+      appearanceRow('Densidad', 'Compacto reduce el alto de filas, botones y campos.', densityControl)),
+  });
+
+  // ---- Sistema ------------------------------------------------------------
   const systemCard = card({
     title: 'Estado del sistema',
     subtitle: 'Servicios de los que depende la consola',
     body: h('div', null,
       row('Proyecto de Firebase', h('span', { class: 'text-mono', text: PROJECT_ID || EM_DASH })),
       row('Realtime Database', h('span', { class: 'text-mono', text: DATABASE_URL || EM_DASH })),
-      row('Región de Cloud Functions', h('span', { class: 'text-mono', text: FUNCTIONS_REGION })),
-      row('Backend de administración', backendStatusSlot),
       row('Imágenes de Unsplash', hasUnsplashKey
         ? badge('Clave configurada', 'success', { iconName: 'circle-check' })
         : badge('Sin clave (modo limitado)', 'warning', { iconName: 'alert-triangle' }))),
-    footer: button({
-      label: 'Comprobar backend',
-      icon: 'server',
-      onClick: () => checkBackend(),
-    }),
   });
 
-  const maskCheckbox = h('input', { type: 'checkbox', checked: getPref('maskDni') });
-  maskCheckbox.addEventListener('change', () => {
-    setPref('maskDni', maskCheckbox.checked);
-    notify.success(maskCheckbox.checked ? 'Los DNI se mostrarán enmascarados.' : 'Los DNI se mostrarán completos.');
-  });
-
-  const pageSizeSelect = h('select', { class: 'select', style: { width: 'auto' }, 'aria-label': 'Filas por página' },
-    ...[25, 50, 100, 200].map((size) => h('option', { value: String(size), text: `${size} filas` })));
-  pageSizeSelect.value = String(getPref('pageSize'));
-  pageSizeSelect.addEventListener('change', () => {
-    setPref('pageSize', Number(pageSizeSelect.value));
-    notify.success('Preferencia guardada.');
-  });
-
-  const preferencesCard = card({
-    title: 'Preferencias de visualización',
-    subtitle: 'Se guardan solo en este navegador',
-    body: h('div', { class: 'stack' },
-      h('label', { class: 'checkbox' },
-        maskCheckbox,
-        h('span', null,
-          h('span', { style: { display: 'block', 'font-weight': 'var(--weight-medium)' }, text: 'Enmascarar el DNI en las tablas' }),
-          h('span', { class: 'text-sm text-secondary', text: 'Muestra solo los últimos 3 dígitos. Puedes revelarlo cuando lo necesites.' }))),
-      h('div', { class: 'row' },
-        h('span', { class: 'status-row__label', text: 'Filas por página' }),
-        h('span', { class: 'spacer' }),
-        pageSizeSelect)),
-  });
-
+  // ---- Datos ---------------------------------------------------------------
   const dataCard = card({
     title: 'Datos',
-    subtitle: 'Exporta la información de la consola',
+    subtitle: 'Exporta la información de eventos e inscripciones',
     body: h('div', { class: 'stack-2' },
       h('p', { class: 'text-sm text-secondary', text: 'Los archivos se generan en tu navegador con los datos que ya tienes cargados.' }),
       h('div', { class: 'row-2 row-wrap' },
         button({ label: 'Exportar eventos', icon: 'download', onClick: exportEvents }),
-        button({ label: 'Exportar inscripciones', icon: 'download', onClick: exportRegistrations }),
-        button({ label: 'Exportar usuarios', icon: 'download', onClick: exportUsers }),
-        button({ label: 'Plantilla de importación', icon: 'file-text', onClick: downloadTemplate }))),
-  });
-
-  const securityCard = card({
-    title: 'Seguridad',
-    body: h('div', { class: 'stack-2' },
-      h('p', { class: 'text-sm text-secondary' },
-        'Las operaciones sobre cuentas (crear, deshabilitar, eliminar, cambiar rol) se ejecutan en Cloud Functions ',
-        'con el SDK de Firebase Admin. La consola nunca inicia sesión en la cuenta de otra persona ni necesita su contraseña.'),
-      h('ul', { class: 'stack-2' },
-        securityItem('Las credenciales de servicio nunca salen del servidor.'),
-        securityItem('El backend verifica de forma independiente que quien llama sea administrador.'),
-        securityItem('Las acciones sobre cuentas se registran en la auditoría desde el servidor.'),
-        securityItem('Los valores de la base de datos se insertan como texto, nunca como HTML.'))),
+        button({ label: 'Exportar inscripciones', icon: 'download', onClick: exportRegistrations }))),
   });
 
   replaceChildren(container,
-    h('div', { class: 'settings-grid' }, accountCard, systemCard),
-    h('div', { class: 'settings-grid' }, preferencesCard, dataCard),
-    securityCard);
+    h('div', { class: 'settings-grid' }, accountCard, appearanceCard),
+    h('div', { class: 'settings-grid' }, systemCard, dataCard));
 
   setPageActions([]);
-  renderBackendStatus('unknown');
-  checkBackend();
 
-  function renderBackendStatus(status) {
-    let node;
-    if (status === 'checking') node = h('span', { class: 'row-2' }, h('span', { class: 'spinner' }), h('span', { class: 'text-sm', text: 'Comprobando…' }));
-    else if (status === 'ready') node = badge('Disponible', 'success', { iconName: 'circle-check' });
-    else if (status === 'unavailable') node = badge('No desplegado', 'danger', { iconName: 'alert-triangle' });
-    else node = badge('Sin comprobar', 'neutral', { dot: false });
-    replaceChildren(backendStatusSlot, node);
+  // Keep the Apariencia controls in sync if the sidebar toggle in the shell
+  // is used while this page is open.
+  function onExternalCollapseChange(event) {
+    sidebarControl.setValue(event.detail.collapsed ? 'collapsed' : 'expanded');
   }
-
-  async function checkBackend() {
-    renderBackendStatus('checking');
-    try {
-      await adminApi.ping();
-      renderBackendStatus('ready');
-      if (backendChecked) notify.success('El backend de administración responde correctamente.');
-    } catch (error) {
-      renderBackendStatus('unavailable');
-      if (backendChecked) notify.error(describeError(error, adminApi.BACKEND_UNAVAILABLE_MESSAGE));
-    } finally {
-      backendChecked = true;
-    }
-  }
+  document.addEventListener('uma:sidebar-collapse-change', onExternalCollapseChange);
 
   function exportEvents() {
     const events = eventsStore.state.items;
@@ -207,28 +193,13 @@ export function mount(container) {
     notify.success(`Se exportaron ${formatNumber(rows.length)} inscripciones.`);
   }
 
-  function exportUsers() {
-    const users = usersStore.state.items;
-    if (!users.length) { notify.warning('No hay usuarios cargados para exportar.'); return; }
-    downloadFile(exportFilename('usuarios'), toCsv([
-      { key: 'email', label: 'email' },
-      { key: 'dni', label: 'dni' },
-      { key: 'stCode', label: 'stCode' },
-      { key: 'role', label: 'role' },
-      { key: 'uid', label: 'uid' },
-    ], users));
-    notify.success(`Se exportaron ${formatNumber(users.length)} usuarios.`);
-  }
-
   // The settings page reads cached data; it subscribes so the exports reflect
   // the latest snapshot even when the console opens directly on this route.
-  const unsubscribes = [
-    eventsStore.subscribe(() => {}),
-    usersStore.subscribe(() => {}),
-  ];
+  const unsubscribeEvents = eventsStore.subscribe(() => {});
 
   return () => {
-    unsubscribes.forEach((unsubscribe) => unsubscribe());
+    unsubscribeEvents();
+    document.removeEventListener('uma:sidebar-collapse-change', onExternalCollapseChange);
     setPageActions([]);
   };
 }
@@ -239,8 +210,10 @@ function row(label, valueNode) {
     h('span', { class: 'status-row__value' }, valueNode));
 }
 
-function securityItem(text) {
-  return h('li', { class: 'row-2', style: { 'align-items': 'flex-start' } },
-    icon('check', { size: 16 }),
-    h('span', { class: 'text-sm', text }));
+function appearanceRow(label, hint, control) {
+  return h('div', { class: 'appearance-row' },
+    h('div', { class: 'appearance-row__text' },
+      h('span', { class: 'appearance-row__label', text: label }),
+      h('span', { class: 'appearance-row__hint', text: hint })),
+    control);
 }

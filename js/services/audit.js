@@ -1,10 +1,8 @@
 /**
- * Audit trail.
+ * Audit trail for event management.
  *
- * Entries for privileged Firebase Authentication operations are written by the
- * Cloud Functions backend (`source: 'server'`) so they cannot be forged or
- * skipped by a client. Event content changes, which the client performs
- * directly against the database, are recorded here (`source: 'client'`).
+ * Records event content changes performed from the console, so administrators
+ * can see who created, edited, deleted or duplicated an event and when.
  *
  * Passwords, tokens and secrets are never written to this log.
  */
@@ -16,13 +14,6 @@ export const AUDIT_ACTIONS = Object.freeze({
   EVENT_UPDATED: 'event.updated',
   EVENT_DELETED: 'event.deleted',
   EVENT_DUPLICATED: 'event.duplicated',
-  USER_CREATED: 'user.created',
-  USER_DELETED: 'user.deleted',
-  USER_DISABLED: 'user.disabled',
-  USER_ENABLED: 'user.enabled',
-  USER_PASSWORD_RESET: 'user.password_reset',
-  USER_ROLE_CHANGED: 'user.role_changed',
-  USER_BULK_IMPORT: 'user.bulk_import',
 });
 
 const LABELS = {
@@ -30,23 +21,12 @@ const LABELS = {
   [AUDIT_ACTIONS.EVENT_UPDATED]: 'Evento editado',
   [AUDIT_ACTIONS.EVENT_DELETED]: 'Evento eliminado',
   [AUDIT_ACTIONS.EVENT_DUPLICATED]: 'Evento duplicado',
-  [AUDIT_ACTIONS.USER_CREATED]: 'Usuario creado',
-  [AUDIT_ACTIONS.USER_DELETED]: 'Usuario eliminado',
-  [AUDIT_ACTIONS.USER_DISABLED]: 'Cuenta deshabilitada',
-  [AUDIT_ACTIONS.USER_ENABLED]: 'Cuenta habilitada',
-  [AUDIT_ACTIONS.USER_PASSWORD_RESET]: 'Restablecimiento de contraseña',
-  [AUDIT_ACTIONS.USER_ROLE_CHANGED]: 'Rol modificado',
-  [AUDIT_ACTIONS.USER_BULK_IMPORT]: 'Importación masiva',
 };
 
 const TONES = {
   [AUDIT_ACTIONS.EVENT_CREATED]: 'success',
   [AUDIT_ACTIONS.EVENT_DELETED]: 'danger',
-  [AUDIT_ACTIONS.USER_CREATED]: 'success',
-  [AUDIT_ACTIONS.USER_DELETED]: 'danger',
-  [AUDIT_ACTIONS.USER_DISABLED]: 'danger',
-  [AUDIT_ACTIONS.USER_ENABLED]: 'success',
-  [AUDIT_ACTIONS.USER_BULK_IMPORT]: 'info',
+  [AUDIT_ACTIONS.EVENT_DUPLICATED]: 'info',
 };
 
 const ICONS = {
@@ -54,13 +34,6 @@ const ICONS = {
   [AUDIT_ACTIONS.EVENT_UPDATED]: 'pencil',
   [AUDIT_ACTIONS.EVENT_DELETED]: 'trash',
   [AUDIT_ACTIONS.EVENT_DUPLICATED]: 'copy',
-  [AUDIT_ACTIONS.USER_CREATED]: 'user-plus',
-  [AUDIT_ACTIONS.USER_DELETED]: 'trash',
-  [AUDIT_ACTIONS.USER_DISABLED]: 'ban',
-  [AUDIT_ACTIONS.USER_ENABLED]: 'circle-check',
-  [AUDIT_ACTIONS.USER_PASSWORD_RESET]: 'key',
-  [AUDIT_ACTIONS.USER_ROLE_CHANGED]: 'shield',
-  [AUDIT_ACTIONS.USER_BULK_IMPORT]: 'upload',
 };
 
 export function describeAction(action) {
@@ -72,7 +45,7 @@ export function actionTone(action) {
 }
 
 export function actionIcon(action) {
-  return ICONS[action] || 'activity';
+  return ICONS[action] || 'calendar-days';
 }
 
 /**

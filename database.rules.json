@@ -11,8 +11,10 @@
     requires a change in the student app and MUST NOT be deployed before that
     app has been verified against it. See docs/SECURITY.md.
 
-    Administrator = `auth.token.admin === true` (custom claim set by the
-    Cloud Functions backend) OR `/users/$uid/role === 'admin'` (legacy).
+    Administrator = `auth.token.admin === true` (a custom claim, if one has
+    been set manually via the Admin SDK) OR `/users/$uid/role === 'admin'`
+    (the normal path — administrator accounts are managed directly in
+    Firebase Console).
   */
   "rules": {
     ".read": false,
@@ -74,11 +76,13 @@
       /*
         Only administrators may list the user directory. Each person can read
         their own record, which is what a student app typically needs after
-        signing in (for example to resolve their stCode).
+        signing in (for example to resolve their stCode), and which this
+        console uses to resolve the signed-in administrator's role.
 
-        Writes are limited to administrators. In practice the console performs
-        them through Cloud Functions, which use the Admin SDK and bypass these
-        rules; keeping the rule here protects the path from any other client.
+        Writes are limited to administrators. The console does not create,
+        edit or delete user accounts — that is done directly in Firebase
+        Console — so this rule mainly protects the path from any other
+        client.
       */
       ".read": "auth.token.admin === true || root.child('users').child(auth.uid).child('role').val() === 'admin'",
       ".indexOn": ["stCode", "email"],
@@ -102,10 +106,10 @@
 
     "auditLogs": {
       /*
-        Readable only by administrators. Appendable by administrators (the
-        console records content changes); entries can never be edited or
-        deleted from a client, so the trail is append-only. Cloud Functions
-        write here with the Admin SDK and are not restricted by these rules.
+        Readable only by administrators. Appendable by administrators — the
+        console records event content changes (created/edited/deleted/
+        duplicated) here; entries can never be edited or deleted from a
+        client, so the trail is append-only.
       */
       ".read": "auth.token.admin === true || root.child('users').child(auth.uid).child('role').val() === 'admin'",
       ".indexOn": ["at", "action", "actorUid"],

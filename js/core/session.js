@@ -6,14 +6,13 @@
  * forced `Persistence.NONE` and signed everybody out on every page load.
  *
  * Authorisation is resolved from two sources:
- *   1. the `admin` custom claim set by the Cloud Functions backend (preferred);
- *   2. `/users/{uid}/role === 'admin'` in the Realtime Database (legacy,
- *      still honoured so existing administrators keep working).
- *
- * The client-side check only decides what the UI renders. Every privileged
- * operation is independently re-verified on the server.
+ *   1. the `admin` custom claim, when one has been set manually on the
+ *      account (e.g. via the Firebase Admin SDK) — preferred;
+ *   2. `/users/{uid}/role === 'admin'` in the Realtime Database — the normal
+ *      path, since administrator accounts are managed directly in Firebase
+ *      Console and this database record.
  */
-import { auth, db, configError } from './firebase.js';
+import { auth, db, configError, DB_PATHS } from './firebase.js';
 
 const listeners = new Set();
 
@@ -90,7 +89,7 @@ async function resolveAuthorization(user) {
   const hasAdminClaim = token.claims && token.claims.admin === true;
   if (hasAdminClaim) return { isAdmin: true, hasAdminClaim: true, source: 'claim' };
 
-  const snapshot = await db.ref('users').child(user.uid).child('role').get();
+  const snapshot = await db.ref(DB_PATHS.users).child(user.uid).child('role').get();
   const role = String(snapshot.val() || '').trim().toLowerCase();
   return { isAdmin: role === 'admin', hasAdminClaim: false, source: role === 'admin' ? 'database' : null };
 }
@@ -119,10 +118,6 @@ export function signIn(email, password) {
  */
 export function signOut() {
   return auth ? auth.signOut() : Promise.resolve();
-}
-
-export function sendPasswordReset(email) {
-  return auth.sendPasswordResetEmail(String(email).trim());
 }
 
 export function currentUid() {

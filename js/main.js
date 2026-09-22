@@ -14,15 +14,17 @@ import { configError } from './core/firebase.js';
 import { startSession, onSession, signOut } from './core/session.js';
 import { renderShell, syncActiveNav, destroyShell } from './core/shell.js';
 import { registerRoute, start as startRouter, stop as stopRouter } from './core/router.js';
+import { initTheme } from './core/theme.js';
 import { renderLogin } from './pages/login.js';
 
+initTheme();
+
 const ROUTES = [
-  { path: '/', title: 'Dashboard', subtitle: 'Resumen de eventos, inscripciones y usuarios', load: () => import('./pages/dashboard.js') },
+  { path: '/', title: 'Dashboard', subtitle: 'Resumen de eventos e inscripciones', load: () => import('./pages/dashboard.js') },
   { path: '/eventos', title: 'Eventos', subtitle: 'Crea y administra los eventos institucionales', load: () => import('./pages/events.js') },
   { path: '/inscripciones', title: 'Inscripciones', subtitle: 'Inscritos de todos los eventos', load: () => import('./pages/registrations.js') },
-  { path: '/usuarios', title: 'Usuarios', subtitle: 'Cuentas de estudiantes y administradores', load: () => import('./pages/users.js') },
-  { path: '/auditoria', title: 'Auditoría', subtitle: 'Registro de acciones administrativas', load: () => import('./pages/audit.js') },
-  { path: '/ajustes', title: 'Ajustes', subtitle: 'Cuenta, estado del sistema y datos', load: () => import('./pages/settings.js') },
+  { path: '/auditoria', title: 'Auditoría', subtitle: 'Registro de acciones sobre eventos', load: () => import('./pages/audit.js') },
+  { path: '/configuracion', title: 'Configuración', subtitle: 'Cuenta, apariencia y datos', load: () => import('./pages/settings.js') },
 ];
 
 ROUTES.forEach(({ path, ...definition }) => registerRoute(path, definition));
@@ -45,7 +47,7 @@ function showScreen(name, render) {
 
 function renderBoot() {
   replaceChildren(root, h('div', { class: 'boot', role: 'status', 'aria-live': 'polite' },
-    h('span', { class: 'brand-mark', text: 'UMA' }),
+    h('img', { class: 'boot__logo', src: 'assets/uma-logo.jpg', alt: 'Universidad María Auxiliadora' }),
     h('span', { class: 'spinner', style: { color: 'var(--text-tertiary)' } }),
     h('p', { class: 'boot__text', text: 'Verificando tu sesión…' })));
   document.title = 'UMA Admin';

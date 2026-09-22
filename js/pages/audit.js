@@ -1,8 +1,8 @@
 /**
  * Audit log.
  *
- * Shows the most recent administrative actions. Entries produced by the Cloud
- * Functions backend are marked as "servidor" and cannot be forged by a browser.
+ * Shows the most recent event management actions performed from the console:
+ * creation, edits, deletions and duplicates.
  */
 import { h, replaceChildren } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
@@ -29,7 +29,6 @@ const ACTION_FILTERS = [
 const TARGET_FILTERS = [
   { value: ANY, label: 'Todos los objetos' },
   { value: 'event', label: 'Eventos' },
-  { value: 'user', label: 'Usuarios' },
 ];
 
 export function mount(container) {
@@ -92,7 +91,7 @@ export function mount(container) {
   replaceChildren(container,
     h('p', { class: 'alert alert--info' },
       icon('info', { size: 18 }),
-      h('span', { text: 'Se conservan las últimas 500 acciones. Las operaciones sobre cuentas se registran en el servidor; las de contenido, desde la consola. Nunca se registran contraseñas ni credenciales.' })),
+      h('span', { text: 'Se conservan las últimas 500 acciones sobre eventos. Nunca se registran contraseñas ni credenciales.' })),
     h('section', { class: 'card' }, toolbar, tableSlot, paginationSlot));
 
   setPageActions([
@@ -151,7 +150,7 @@ export function mount(container) {
     if (!storeState.items.length) {
       replaceChildren(tableSlot, emptyState({
         title: 'Sin acciones registradas',
-        text: 'Cuando se creen, editen o eliminen eventos y usuarios, la actividad aparecerá aquí.',
+        text: 'Cuando se creen, editen o eliminen eventos, la actividad aparecerá aquí.',
         icon: 'scroll-text',
       }));
       replaceChildren(paginationSlot);
@@ -237,7 +236,7 @@ export function mount(container) {
           h('dt', { text: 'Tipo de objeto' }), h('dd', { text: entry.targetType || EM_DASH }),
           h('dt', { text: 'Objeto' }), h('dd', { text: entry.targetLabel || EM_DASH }),
           h('dt', { text: 'Identificador' }), h('dd', h('code', { class: 'text-mono', text: entry.targetId || EM_DASH })),
-          h('dt', { text: 'Origen' }), h('dd', { text: entry.source === 'server' ? 'Servidor (Cloud Functions)' : 'Consola web' }),
+          h('dt', { text: 'Origen' }), h('dd', { text: entry.source === 'server' ? 'Servidor' : 'Consola web' }),
           ...metaRows)),
     });
   }

@@ -2,7 +2,7 @@
 //
 // Everything in this file is PUBLIC: it is served to the browser as part of the
 // static bundle. Firebase web configuration is designed to be public and is
-// protected by Realtime Database security rules and Cloud Functions checks.
+// protected by Realtime Database security rules.
 //
 // NEVER put a service-account key, the Unsplash Secret Key, or any other true
 // secret in here.
@@ -18,10 +18,7 @@ window.umaConfig = {
     measurementId:     "${FIREBASE_MEASUREMENT_ID}"
   },
 
-  // Region where the admin Cloud Functions are deployed (see /functions).
-  functionsRegion: "${FUNCTIONS_REGION}",
-
-  // Unsplash public Access Key. The Secret Key must stay on the server.
+  // Unsplash public Access Key. The Secret Key must stay off the client.
   // Without it the event image suggestion falls back to a limited, keyless
   // endpoint and administrators can still paste an image URL manually.
   unsplashAccessKey: "${UNSPLASH_ACCESS_KEY}"

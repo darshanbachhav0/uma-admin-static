@@ -4,7 +4,8 @@
  * `window.umaConfig` is produced at build time by `render-build.sh` from
  * environment variables. The web API key and database URL it contains are
  * public by design; no service-account credential is ever shipped to the
- * browser — privileged operations run in Cloud Functions (see /functions).
+ * browser. This app talks to Firebase Authentication and Realtime Database
+ * directly from the client — there is no privileged backend.
  */
 
 const config = window.umaConfig || {};
@@ -24,20 +25,6 @@ export const configError = (() => {
 export const app = configError ? null : firebase.initializeApp(firebaseConfig);
 export const auth = configError ? null : firebase.auth();
 export const db = configError ? null : firebase.database();
-
-/** Region where the admin Cloud Functions are deployed. */
-export const FUNCTIONS_REGION = config.functionsRegion || 'us-central1';
-
-let functionsInstance = null;
-/** Lazily created callable-functions client. */
-export function functions() {
-  if (configError) return null;
-  if (!functionsInstance) {
-    if (typeof firebase.functions !== 'function') return null;
-    functionsInstance = app.functions(FUNCTIONS_REGION);
-  }
-  return functionsInstance;
-}
 
 export const UNSPLASH_ACCESS_KEY = (() => {
   const key = config.unsplashAccessKey;

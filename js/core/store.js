@@ -88,22 +88,6 @@ export const eventsStore = createCollection('events', {
     .sort(byStartAt),
 });
 
-export const usersStore = createCollection('users', {
-  query: (database) => database.ref(DB_PATHS.users),
-  normalize: (data) => Object.entries(data)
-    .filter(([, value]) => value && typeof value === 'object')
-    .map(([uid, value]) => ({
-      uid,
-      email: typeof value.email === 'string' ? value.email : '',
-      dni: value.dni === undefined || value.dni === null ? '' : String(value.dni),
-      stCode: value.stCode === undefined || value.stCode === null ? '' : String(value.stCode),
-      role: String(value.role || '').trim().toLowerCase(),
-      createdAt: Number(value.createdAt) || 0,
-      createdBy: typeof value.createdBy === 'string' ? value.createdBy : '',
-    }))
-    .sort((a, b) => a.stCode.localeCompare(b.stCode, 'es')),
-});
-
 export const auditStore = createCollection('audit', {
   query: (database) => database.ref(DB_PATHS.auditLogs).orderByChild('at').limitToLast(AUDIT_LIMIT),
   normalize: (data) => Object.entries(data)

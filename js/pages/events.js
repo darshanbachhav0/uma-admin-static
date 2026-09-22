@@ -104,7 +104,7 @@ export function mount(container, context) {
 
   setPageActions([
     button({ label: 'Refrescar', variant: 'ghost', icon: 'refresh', onClick: () => eventsStore.refresh() }),
-    button({ label: 'Nuevo evento', variant: 'primary', icon: 'plus', onClick: () => openEditor(null) }),
+    button({ label: 'Crear evento', variant: 'primary', icon: 'plus', onClick: () => openEditor(null) }),
   ]);
 
   const unsubscribe = eventsStore.subscribe((next) => { storeState = next; render(); });

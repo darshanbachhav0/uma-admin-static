@@ -235,3 +235,42 @@ export function debounce(fn, wait = 200) {
     timer = setTimeout(() => fn(...args), wait);
   };
 }
+
+/**
+ * Segmented control: a small set of mutually exclusive options (e.g. theme,
+ * density) shown as a single-row button group instead of a `<select>`.
+ *
+ * @param {object} options
+ * @param {Array<{value:string, label:string, icon?:string}>} options.options
+ * @param {string} options.value    Currently selected value.
+ * @param {(value:string)=>void} options.onChange
+ * @param {string} [options.ariaLabel]
+ * @returns {HTMLElement & {setValue:(value:string)=>void}}
+ */
+export function segmentedControl({ options, value, onChange, ariaLabel }) {
+  const buttons = new Map();
+
+  const node = h('div', { class: 'segmented', role: 'group', 'aria-label': ariaLabel });
+  for (const opt of options) {
+    const btn = h('button', {
+      class: 'segmented__item',
+      type: 'button',
+      'aria-pressed': opt.value === value ? 'true' : 'false',
+    },
+      opt.icon ? icon(opt.icon, { size: 15 }) : null,
+      h('span', { text: opt.label }));
+    btn.addEventListener('click', () => {
+      if (btn.getAttribute('aria-pressed') === 'true') return;
+      node.setValue(opt.value);
+      onChange(opt.value);
+    });
+    buttons.set(opt.value, btn);
+    node.appendChild(btn);
+  }
+
+  node.setValue = (next) => {
+    buttons.forEach((btn, key) => btn.setAttribute('aria-pressed', key === next ? 'true' : 'false'));
+  };
+
+  return node;
+}

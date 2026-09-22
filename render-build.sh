@@ -34,9 +34,6 @@ if [ "$missing" = "1" ]; then
   exit 2
 fi
 
-# Region where `firebase deploy --only functions` published the admin backend.
-export FUNCTIONS_REGION="${FUNCTIONS_REGION:-us-central1}"
-
 if [ -z "${UNSPLASH_ACCESS_KEY:-}" ]; then
   echo "UNSPLASH_ACCESS_KEY not set — event image suggestions will run in limited mode."
   export UNSPLASH_ACCESS_KEY=""
@@ -60,7 +57,6 @@ window.umaConfig = {
     appId:             "${FIREBASE_APP_ID}",
     measurementId:     "${FIREBASE_MEASUREMENT_ID}"
   },
-  functionsRegion: "${FUNCTIONS_REGION}",
   unsplashAccessKey: "${UNSPLASH_ACCESS_KEY}"
 };
 EOF
