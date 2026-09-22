@@ -11,7 +11,6 @@
  */
 import { db, DB_PATHS } from '../core/firebase.js';
 import { getSession } from '../core/session.js';
-import { recordAudit, AUDIT_ACTIONS } from './audit.js';
 import { cleanText, parseTags, safeUrl } from '../utils/validate.js';
 import { startOfDay } from '../utils/format.js';
 
@@ -112,27 +111,12 @@ export async function saveEvent(eventId, values) {
   // `update` keeps the `registrations` child intact; `set` would delete it.
   await ref.update(payload);
 
-  await recordAudit({
-    action: isNew ? AUDIT_ACTIONS.EVENT_CREATED : AUDIT_ACTIONS.EVENT_UPDATED,
-    targetType: 'event',
-    targetId: id,
-    targetLabel: values.title,
-    meta: { status: values.status, startAt: values.startAt || null },
-  });
-
   return id;
 }
 
 /** Delete an event and its registrations. */
 export async function deleteEvent(event) {
   await db.ref(DB_PATHS.events).child(event.id).remove();
-  await recordAudit({
-    action: AUDIT_ACTIONS.EVENT_DELETED,
-    targetType: 'event',
-    targetId: event.id,
-    targetLabel: event.title,
-    meta: { registrations: event.registrationCount || 0 },
-  });
 }
 
 /**
@@ -158,14 +142,6 @@ export async function duplicateEvent(event) {
     createdBy: user ? user.uid : '',
     createdAt: Date.now(),
     updatedAt: Date.now(),
-  });
-
-  await recordAudit({
-    action: AUDIT_ACTIONS.EVENT_DUPLICATED,
-    targetType: 'event',
-    targetId: id,
-    targetLabel: title,
-    meta: { sourceEventId: event.id },
   });
 
   return id;

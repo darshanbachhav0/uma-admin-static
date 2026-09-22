@@ -34,9 +34,4 @@ export const UNSPLASH_ACCESS_KEY = (() => {
 export const DB_PATHS = Object.freeze({
   events: 'events',
   users: 'users',
-  auditLogs: 'auditLogs',
 });
-
-/** Database URL shown on the settings page (never a secret). */
-export const DATABASE_URL = firebaseConfig ? firebaseConfig.databaseURL || '' : '';
-export const PROJECT_ID = firebaseConfig ? firebaseConfig.projectId || '' : '';

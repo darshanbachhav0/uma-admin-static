@@ -11,9 +11,9 @@ import { signIn } from '../core/session.js';
 import { describeError, isEmail } from '../utils/validate.js';
 
 const HIGHLIGHTS = [
-  { icon: 'calendar-days', text: 'Publica y actualiza los eventos institucionales' },
-  { icon: 'clipboard-list', text: 'Consulta y exporta las inscripciones de estudiantes' },
-  { icon: 'scroll-text', text: 'Revisa el historial de cambios de cada evento' },
+  { icon: 'calendar-days', text: 'Crea y administra los eventos institucionales' },
+  { icon: 'clipboard-list', text: 'Consulta y exporta las inscripciones de cada evento' },
+  { icon: 'layout-dashboard', text: 'Sigue en tiempo real el estado de tus eventos' },
 ];
 
 export function renderLogin(root) {

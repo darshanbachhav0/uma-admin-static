@@ -10,11 +10,10 @@ import { icon } from '../ui/icons.js';
 import { button, card, kpi, badge } from '../ui/controls.js';
 import { emptyState, errorState, skeletonKpis, loadingState } from '../ui/states.js';
 import { barChart, distribution } from '../ui/chart.js';
-import { eventsStore, auditStore, flattenRegistrations } from '../core/store.js';
+import { eventsStore, flattenRegistrations } from '../core/store.js';
 import { setPageActions } from '../core/shell.js';
 import { navigate } from '../core/router.js';
-import { summarizeEvents, timing } from '../services/events.js';
-import { describeAction, actionIcon, actionTone } from '../services/audit.js';
+import { summarizeEvents, statusLabel, statusVariant, timing } from '../services/events.js';
 import {
   formatNumber, formatDateTime, formatRelative, formatMonth,
   startOfMonth, addMonths, pluralize,
@@ -25,14 +24,14 @@ const MONTHS_IN_CHART = 6;
 export function mount(container) {
   const kpiSection = h('section', { 'aria-label': 'Indicadores' }, skeletonKpis(6));
   const upcomingSlot = h('div');
-  const activitySlot = h('div');
+  const recentSlot = h('div');
   const analyticsSlot = h('div');
   const statusSlot = h('div');
 
   replaceChildren(container,
     kpiSection,
     h('div', { class: 'dash-grid' }, analyticsSlot, statusSlot),
-    h('div', { class: 'dash-grid' }, upcomingSlot, activitySlot));
+    h('div', { class: 'dash-grid' }, upcomingSlot, recentSlot));
 
   setPageActions([
     button({
@@ -45,12 +44,10 @@ export function mount(container) {
 
   const state = {
     events: eventsStore.state,
-    audit: auditStore.state,
   };
 
   const unsubscribes = [
     eventsStore.subscribe((next) => { state.events = next; render(); }),
-    auditStore.subscribe((next) => { state.audit = next; render(); }),
   ];
 
   function render() {
@@ -58,7 +55,7 @@ export function mount(container) {
     renderAnalytics();
     renderStatus();
     renderUpcoming();
-    renderActivity();
+    renderRecent();
   }
 
   function renderKpis() {
@@ -195,41 +192,35 @@ export function mount(container) {
     }));
   }
 
-  function renderActivity() {
-    const entries = state.audit.items.slice(0, 6);
+  function renderRecent() {
+    const recent = [...state.events.items]
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .slice(0, 6);
 
     let body;
-    if (state.audit.status === 'loading' && !entries.length) {
-      body = loadingState('Cargando actividad…', { inline: true });
-    } else if (state.audit.status === 'error') {
-      body = errorState({
-        title: 'Registro de auditoría no disponible',
-        text: 'Verifica que las reglas de la base de datos permitan leer /auditLogs a los administradores.',
-        inline: true,
-      });
-    } else if (!entries.length) {
+    if (state.events.status === 'loading' && !state.events.items.length) {
+      body = loadingState('Cargando eventos…', { inline: true });
+    } else if (!recent.length) {
       body = emptyState({
-        title: 'Sin actividad registrada',
-        text: 'Las acciones administrativas aparecerán aquí en cuanto se realicen.',
-        icon: 'activity',
+        title: 'Sin eventos recientes',
+        text: 'Los eventos que crees aparecerán aquí, con los más nuevos primero.',
+        icon: 'calendar-days',
         inline: true,
       });
     } else {
-      body = h('div', { class: 'activity' }, ...entries.map((entry) => h('article', { class: 'activity__item' },
-        h('span', { class: ['activity__icon', actionTone(entry.action) ? `activity__icon--${actionTone(entry.action)}` : ''] },
-          icon(actionIcon(entry.action), { size: 16 })),
+      body = h('div', { class: 'activity' }, ...recent.map((event) => h('article', { class: 'activity__item' },
+        h('span', { class: 'activity__icon' }, icon('calendar-days', { size: 16 })),
         h('div', { class: 'activity__body' },
-          h('p', { class: 'activity__text' },
-            describeAction(entry.action),
-            entry.targetLabel ? h('span', { class: 'text-secondary', text: ` · ${entry.targetLabel}` }) : null),
-          h('p', { class: 'activity__meta', text: `${entry.actorEmail || entry.actorUid || 'Sistema'} · ${formatRelative(entry.at)}` })))));
+          h('p', { class: 'activity__text cell-primary', text: event.title || '(Sin título)' }),
+          h('p', { class: 'activity__meta', text: `Creado ${formatRelative(event.createdAt)}` })),
+        badge(statusLabel(event.status), statusVariant(event.status)))));
     }
 
-    replaceChildren(activitySlot, card({
-      title: 'Actividad reciente',
-      subtitle: 'Últimas acciones administrativas',
+    replaceChildren(recentSlot, card({
+      title: 'Eventos recientes',
+      subtitle: 'Últimos eventos creados',
       flush: true,
-      actions: [button({ label: 'Ver auditoría', variant: 'ghost', size: 'sm', onClick: () => navigate('/auditoria') })],
+      actions: [button({ label: 'Ver todos', variant: 'ghost', size: 'sm', onClick: () => navigate('/eventos') })],
       body,
     }));
   }

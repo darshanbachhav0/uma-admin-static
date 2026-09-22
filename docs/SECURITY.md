@@ -20,8 +20,9 @@ Se eliminó:
 - la pantalla y los diálogos de usuarios (`js/pages/users.js`, `js/pages/user-dialogs.js`),
 - el cliente de la API administrativa (`js/services/adminApi.js`),
 - el backend de Cloud Functions (`/functions`),
-- las acciones de auditoría relacionadas con cuentas (creación, baja,
-  deshabilitación, restablecimiento de contraseña, importación masiva).
+- el registro de auditoría (`js/pages/audit.js`, `js/services/audit.js`) y la
+  sección Configuración (`js/pages/settings.js`, `js/core/theme.js`), para
+  mantener la consola enfocada solo en Dashboard, Eventos e Inscripciones.
 
 **Lo que se conserva:** la consola sigue leyendo `/users/{uid}/role` para
 decidir si la persona que inició sesión es administradora — eso es
@@ -50,8 +51,6 @@ repositorio):
 - `/users`: solo los administradores pueden listar el directorio; cada
   persona puede leer su propia ficha (necesario para resolver su rol). Los
   campos `password` y `pass` están explícitamente prohibidos por validación.
-- `/auditLogs`: lectura solo para administradores; escritura solo de entradas
-  nuevas (append-only) y con `actorUid` obligatoriamente igual a `auth.uid`.
 - Todo lo demás queda denegado por defecto.
 
 **Limitación conocida.** Las inscripciones cuelgan de
@@ -104,13 +103,6 @@ enlaces de atribución de Unsplash.
   pantalla «No tienes acceso» tiene su propio botón. No queda atrapado.
 - No hay destello de contenido protegido: la consola solo se construye
   cuando el rol ya está resuelto.
-
-### Auditoría
-
-`/auditLogs` registra la creación, edición, eliminación y duplicado de
-eventos desde la consola. El cliente filtra cualquier clave de metadatos que
-coincida con `pass`, `password`, `secret`, `token`, `credential` o `apikey`,
-de modo que nunca se registran credenciales.
 
 ### Configuración
 

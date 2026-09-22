@@ -14,17 +14,12 @@ import { configError } from './core/firebase.js';
 import { startSession, onSession, signOut } from './core/session.js';
 import { renderShell, syncActiveNav, destroyShell } from './core/shell.js';
 import { registerRoute, start as startRouter, stop as stopRouter } from './core/router.js';
-import { initTheme } from './core/theme.js';
 import { renderLogin } from './pages/login.js';
-
-initTheme();
 
 const ROUTES = [
   { path: '/', title: 'Dashboard', subtitle: 'Resumen de eventos e inscripciones', load: () => import('./pages/dashboard.js') },
   { path: '/eventos', title: 'Eventos', subtitle: 'Crea y administra los eventos institucionales', load: () => import('./pages/events.js') },
   { path: '/inscripciones', title: 'Inscripciones', subtitle: 'Inscritos de todos los eventos', load: () => import('./pages/registrations.js') },
-  { path: '/auditoria', title: 'Auditoría', subtitle: 'Registro de acciones sobre eventos', load: () => import('./pages/audit.js') },
-  { path: '/configuracion', title: 'Configuración', subtitle: 'Cuenta, apariencia y datos', load: () => import('./pages/settings.js') },
 ];
 
 ROUTES.forEach(({ path, ...definition }) => registerRoute(path, definition));

@@ -1,29 +1,9 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <!--
-    Apply the stored appearance preference before any stylesheet paints, so
-    there is no flash of the light theme for administrators who chose dark.
-    Kept in sync with js/core/theme.js — update both if this logic changes.
-  -->
-  <script>
-    (function () {
-      try {
-        var theme = localStorage.getItem('uma.theme');
-        var resolved = theme === 'dark' || theme === 'light'
-          ? theme
-          : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        document.documentElement.setAttribute('data-theme', resolved);
-        if (localStorage.getItem('uma.density') === 'compact') {
-          document.documentElement.setAttribute('data-density', 'compact');
-        }
-      } catch (e) { /* storage unavailable (private mode, etc.) — light theme stays the default */ }
-    })();
-  </script>
-
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="color-scheme" content="light dark" />
+  <meta name="color-scheme" content="light" />
   <meta name="theme-color" content="#e11d48" />
   <meta name="description" content="Consola de administración de eventos de la Universidad María Auxiliadora." />
   <meta name="robots" content="noindex, nofollow" />

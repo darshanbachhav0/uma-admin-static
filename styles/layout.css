@@ -42,7 +42,7 @@
   background: rgba(255, 255, 255, .96);
   width: fit-content;
 }
-.auth-screen__logo { height: 40px; width: auto; display: block; }
+.auth-screen__logo { height: clamp(32px, 2.6vw, 40px); width: auto; max-width: 100%; display: block; }
 .auth-screen__aside-title { margin-top: var(--space-8); font-size: var(--text-3xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); letter-spacing: -.02em; max-width: 16ch; }
 .auth-screen__aside-text { margin-top: var(--space-4); font-size: var(--text-md); color: rgba(255, 255, 255, .82); max-width: 44ch; }
 .auth-screen__aside-list { margin-top: var(--space-8); display: flex; flex-direction: column; gap: var(--space-3); }
@@ -56,7 +56,7 @@
   padding: var(--space-6);
 }
 .auth-panel { width: min(400px, 100%); display: flex; flex-direction: column; gap: var(--space-6); align-items: center; text-align: center; }
-.auth-panel__logo { height: 56px; width: auto; }
+.auth-panel__logo { height: clamp(44px, 12vw, 60px); width: auto; max-width: 100%; }
 .auth-panel__head { display: flex; flex-direction: column; gap: var(--space-1); align-items: center; }
 .auth-panel__title { font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: -.02em; }
 .auth-panel__subtitle { font-size: var(--text-base); color: var(--text-secondary); }

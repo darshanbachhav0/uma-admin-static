@@ -10,8 +10,6 @@
  */
 import { db, DB_PATHS } from './firebase.js';
 
-const AUDIT_LIMIT = 500;
-
 function createCollection(name, { query, normalize }) {
   const listeners = new Set();
   let state = { status: 'idle', items: [], error: null, updatedAt: 0 };
@@ -86,25 +84,6 @@ export const eventsStore = createCollection('events', {
     .filter(([, value]) => value && typeof value === 'object')
     .map(([id, value]) => normalizeEvent(id, value))
     .sort(byStartAt),
-});
-
-export const auditStore = createCollection('audit', {
-  query: (database) => database.ref(DB_PATHS.auditLogs).orderByChild('at').limitToLast(AUDIT_LIMIT),
-  normalize: (data) => Object.entries(data)
-    .filter(([, value]) => value && typeof value === 'object')
-    .map(([id, value]) => ({
-      id,
-      at: Number(value.at) || 0,
-      action: String(value.action || ''),
-      actorUid: String(value.actorUid || ''),
-      actorEmail: String(value.actorEmail || ''),
-      targetType: String(value.targetType || ''),
-      targetId: String(value.targetId || ''),
-      targetLabel: String(value.targetLabel || ''),
-      source: String(value.source || 'client'),
-      meta: value.meta && typeof value.meta === 'object' ? value.meta : null,
-    }))
-    .sort((a, b) => b.at - a.at),
 });
 
 function normalizeEvent(id, value) {

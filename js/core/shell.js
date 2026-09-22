@@ -7,18 +7,17 @@
 import { h, replaceChildren } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
 import { attachMenu } from '../ui/menu.js';
-import { navigate, parseHash } from './router.js';
+import { parseHash } from './router.js';
 import { getSession, signOut } from './session.js';
-import { getSidebarCollapsed, setSidebarCollapsed } from './theme.js';
 import { initials } from '../utils/format.js';
 import { notify } from '../ui/toast.js';
+
+const COLLAPSE_KEY = 'uma.sidebar.collapsed';
 
 export const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: 'layout-dashboard' },
   { path: '/eventos', label: 'Eventos', icon: 'calendar-days' },
   { path: '/inscripciones', label: 'Inscripciones', icon: 'clipboard-list' },
-  { path: '/auditoria', label: 'Auditoría', icon: 'scroll-text' },
-  { path: '/configuracion', label: 'Configuración', icon: 'settings' },
 ];
 
 let shell = null;
@@ -65,8 +64,6 @@ export function renderShell(root) {
     const { user } = getSession();
     return [
       { heading: user && user.email ? user.email : 'Sesión' },
-      { label: 'Configuración', icon: 'settings', onSelect: () => navigate('/configuracion') },
-      { separator: true },
       {
         label: 'Cerrar sesión',
         icon: 'log-out',
@@ -176,23 +173,20 @@ export function renderShell(root) {
   desktopQuery.addEventListener('change', (event) => { if (event.matches) closeDrawer(); });
 
   // ---- Collapse (desktop) ----------------------------------------------
-  // The preference is shared with the Apariencia section in Configuración:
-  // both read/write it through core/theme.js and stay in sync via the
-  // `uma:sidebar-collapse-change` event.
   function applyCollapsed(collapsed) {
     appShell.classList.toggle('is-collapsed', collapsed);
     collapseBtn.setAttribute('aria-label', collapsed ? 'Expandir menú lateral' : 'Contraer menú lateral');
     collapseBtn.title = collapsed ? 'Expandir menú' : 'Contraer menú';
   }
 
-  applyCollapsed(getSidebarCollapsed());
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { collapsed = false; }
+  applyCollapsed(collapsed);
 
   collapseBtn.addEventListener('click', () => {
-    applyCollapsed(setSidebarCollapsed(!appShell.classList.contains('is-collapsed')));
-  });
-
-  document.addEventListener('uma:sidebar-collapse-change', (event) => {
-    applyCollapsed(event.detail.collapsed);
+    collapsed = !collapsed;
+    applyCollapsed(collapsed);
+    try { localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0'); } catch { /* storage unavailable */ }
   });
 
   shell = {

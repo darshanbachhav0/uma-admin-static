@@ -1,7 +1,7 @@
 # UMA Admin
 
-Panel administrativo de eventos de la Universidad María Auxiliadora: eventos,
-inscripciones y auditoría.
+Panel administrativo de eventos de la Universidad María Auxiliadora: eventos e
+inscripciones.
 
 Sitio estático (HTML + CSS + JavaScript con módulos ES, sin framework ni paso de
 compilación) sobre Firebase Authentication y Realtime Database. No tiene
@@ -18,12 +18,11 @@ render-build.sh                Genera config.js a partir de variables de entorno
 assets/uma-logo.jpg            Logo oficial de la Universidad María Auxiliadora
 
 styles/
-  tokens.css                   Design tokens (color, tipografía, espaciado, radios,
-                               temas claro/oscuro, densidad cómoda/compacta)
+  tokens.css                   Design tokens (color, tipografía, espaciado, radios…)
   base.css                     Reset, tipografía y utilidades
   components.css               Botones, campos, tablas, modales, toasts, menús…
   layout.css                   Login, sidebar, barra superior, shell
-  pages.css                    Composición de dashboard, eventos y configuración
+  pages.css                    Composición del dashboard y de eventos
 
 js/
   main.js                      Punto de entrada y estados de pantalla
@@ -33,13 +32,11 @@ js/
     store.js                   Suscripciones a la base de datos con recuento de referencias
     router.js                  Enrutador por hash con montaje/desmontaje
     shell.js                   Sidebar, barra superior, perfil
-    theme.js                   Tema, densidad y estado de la barra lateral (localStorage)
     prefs.js                   Preferencias locales de visualización
   ui/                          Componentes reutilizables (dom, icons, controls,
                                overlay, confirm, menu, toast, states, pagination, chart)
-  services/                    events, registrations (vía store), audit, unsplash
-  pages/                       login, dashboard, events, event-editor,
-                               registrations, audit, settings
+  services/                    events, registrations (vía store), unsplash
+  pages/                       login, dashboard, events, event-editor, registrations
   utils/                       format, validate, csv
 
 database.rules.json            Reglas de seguridad — perfil de compatibilidad
@@ -67,26 +64,12 @@ npx serve . -l 5173
 
 | Sección       | Ruta               | Contenido |
 |---------------|--------------------|-----------|
-| Dashboard     | `#/`               | KPIs de eventos e inscripciones, gráfico mensual, estado de eventos, próximos eventos, actividad reciente |
+| Dashboard     | `#/`               | KPIs de eventos e inscripciones, gráfico mensual, estado de eventos, próximos eventos, eventos recientes |
 | Eventos       | `#/eventos`        | Búsqueda, filtros, orden, tarjetas, editor en panel lateral |
 | Inscripciones | `#/inscripciones`  | Tabla agregada de todos los eventos, filtros, exportación CSV |
-| Auditoría     | `#/auditoria`      | Registro de acciones sobre eventos (creado, editado, eliminado, duplicado) |
-| Configuración | `#/configuracion`  | Cuenta, apariencia (tema, barra lateral, densidad), estado del sistema, exportaciones |
 
 Enlaces profundos admitidos: `#/eventos?nuevo=1`, `#/eventos?editar=<id>`,
 `#/inscripciones?evento=<id>`.
-
-## Apariencia
-
-La sección **Configuración → Apariencia** controla tres preferencias, guardadas
-en `localStorage` de ese navegador:
-
-- **Tema**: claro, oscuro o según el sistema operativo (se actualiza en vivo si
-  cambia la preferencia del sistema).
-- **Barra lateral**: expandida o colapsada a solo íconos; el mismo control que
-  el botón de la barra lateral.
-- **Densidad**: cómoda o compacta (reduce el alto de botones, campos y filas de
-  tabla).
 
 ## Modelo de datos
 
@@ -103,10 +86,6 @@ la aplicación de estudiantes:
 
 /users/{uid}
   dni, stCode, role?, email?, createdAt?, createdBy?
-
-/auditLogs/{entryId}
-  at, action, actorUid, actorEmail, targetType, targetId, targetLabel,
-  source, meta?
 ```
 
 `status` conserva sus dos valores históricos: `upcoming` y `ongoing`. El estado
