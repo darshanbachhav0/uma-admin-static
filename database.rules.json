@@ -2,6 +2,13 @@
   /*
     UMA Admin — Realtime Database security rules (COMPATIBILITY PROFILE).
 
+    ⚠️ DO NOT DEPLOY THIS FILE AS-IS TO uma-erp. That database also serves
+    other parts of the student app (e.g. Horario), and this file denies every
+    path it doesn't list — deploying it would replace the project's live rules
+    and could break those features. To enable event documents, paste only
+    database.rules.event-documents.json into the existing rules (see
+    docs/DEPLOYMENT.md). This file documents the rules this console needs.
+
     These rules are written to be safe to deploy alongside the existing
     student-facing application, which is NOT part of this repository. Where its
     behaviour could not be determined from this codebase, the rule stays
