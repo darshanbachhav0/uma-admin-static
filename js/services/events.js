@@ -13,6 +13,7 @@ import { db, DB_PATHS } from '../core/firebase.js';
 import { getSession } from '../core/session.js';
 import { cleanText, parseTags, safeUrl } from '../utils/validate.js';
 import { startOfDay } from '../utils/format.js';
+import { documentsDeletionUpdate } from './documents.js';
 
 export const EVENT_STATUSES = Object.freeze([
   { value: 'upcoming', label: 'Próximo' },
@@ -116,7 +117,15 @@ export async function saveEvent(eventId, values) {
 
 /** Delete an event and its registrations. */
 export async function deleteEvent(event) {
-  await db.ref(DB_PATHS.events).child(event.id).remove();
+  if (!event.documentCount) {
+    await db.ref(DB_PATHS.events).child(event.id).remove();
+    return;
+  }
+  // Remove the event and its documents together, so neither is left behind.
+  await db.ref().update({
+    [`${DB_PATHS.events}/${event.id}`]: null,
+    ...documentsDeletionUpdate(event.id),
+  });
 }
 
 /**

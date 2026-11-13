@@ -48,6 +48,8 @@
         "createdAt":   { ".validate": "newData.isNumber()" },
         "updatedAt":   { ".validate": "newData.isNumber()" },
         "imageUrl":    { ".validate": "newData.isString() && (newData.val() === '' || newData.val().matches(/^https?:\\/\\//))" },
+        "documentsUrl":  { ".validate": "newData.isString() && newData.val().length <= 500 && newData.val().matches(/^https?:\\/\\//)" },
+        "documentCount": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 10" },
 
         "registrations": {
           /*
@@ -64,6 +66,51 @@
           "$registrationId": {
             ".write": "auth != null && (!data.exists() || auth.token.admin === true || root.child('users').child(auth.uid).child('role').val() === 'admin')",
             "registeredAt": { ".validate": "newData.isNumber()" }
+          }
+        }
+      }
+    },
+
+    "eventDocuments": {
+      /*
+        Public index of the downloadable documents of each event (titles,
+        file names, sizes). Read by documentos.html without a login, one event
+        at a time — the collection itself cannot be listed. Only administrators
+        can write.
+      */
+      "$eventId": {
+        ".read": true,
+        ".write": "auth.token.admin === true || root.child('users').child(auth.uid).child('role').val() === 'admin'",
+        "eventTitle": { ".validate": "newData.isString() && newData.val().length <= 200" },
+        "updatedAt":  { ".validate": "newData.isNumber()" },
+        "documents": {
+          "$docId": {
+            ".validate": "newData.hasChildren(['title', 'files'])",
+            "title": { ".validate": "newData.isString() && newData.val().length <= 120" },
+            "order": { ".validate": "newData.isNumber()" },
+            "files": {
+              "$format": {
+                ".validate": "$format.matches(/^(pdf|docx|doc)$/) && newData.hasChildren(['fileName', 'size'])"
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "eventDocumentData": {
+      /*
+        Base64 contents of each document file, kept outside /events so the
+        student app never downloads them while listing events. Each file is
+        readable on its own (documentos.html downloads it on demand); nothing
+        above that level can be read. Max ~7 MB of base64 (a 5 MB file).
+      */
+      "$eventId": {
+        ".write": "auth.token.admin === true || root.child('users').child(auth.uid).child('role').val() === 'admin'",
+        "$docId": {
+          "$format": {
+            ".read": true,
+            ".validate": "$format.matches(/^(pdf|docx|doc)$/) && newData.isString() && newData.val().length <= 7000000"
           }
         }
       }

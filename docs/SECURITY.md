@@ -51,6 +51,13 @@ repositorio):
 - `/users`: solo los administradores pueden listar el directorio; cada
   persona puede leer su propia ficha (necesario para resolver su rol). Los
   campos `password` y `pass` están explícitamente prohibidos por validación.
+- `/eventDocuments/{eventId}` y `/eventDocumentData/{eventId}/{docId}/{formato}`:
+  lectura **pública** de un evento o de un archivo a la vez (la colección
+  completa no se puede listar), para que la página `documentos.html` funcione
+  sin iniciar sesión; escritura solo para administradores, con validación de
+  formato (`pdf`, `docx`, `doc`) y tamaño (≈5 MB por archivo). No subas a esta
+  sección documentos con datos personales: cualquiera con el enlace puede
+  descargarlos.
 - Todo lo demás queda denegado por defecto.
 
 **Limitación conocida.** Las inscripciones cuelgan de
