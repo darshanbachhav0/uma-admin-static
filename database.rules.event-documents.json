@@ -1,0 +1,48 @@
+{
+  /*
+    ONLY the rules needed for event documents — paste these two sections into
+    the EXISTING rules of the uma-erp project (Firebase Console → Realtime
+    Database → Reglas), inside "rules": { … }, next to the other top-level
+    paths. Do not replace the existing rules: the uma-erp database also serves
+    other parts of the student app.
+
+    - eventDocuments/{eventId}: public index read by documentos.html (one event
+      at a time; the collection cannot be listed). Admin-only writes.
+    - eventDocumentData/{eventId}/{docId}/{format}: base64 file contents, each
+      file readable on its own. Admin-only writes. Max ~5 MB per file.
+  */
+  "rules": {
+    "eventDocuments": {
+      "$eventId": {
+        ".read": true,
+        ".write": "auth != null && (auth.token.admin === true || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        "eventTitle": { ".validate": "newData.isString() && newData.val().length <= 200" },
+        "updatedAt":  { ".validate": "newData.isNumber()" },
+        "documents": {
+          "$docId": {
+            ".validate": "newData.hasChildren(['title', 'files'])",
+            "title": { ".validate": "newData.isString() && newData.val().length <= 120" },
+            "order": { ".validate": "newData.isNumber()" },
+            "files": {
+              "$format": {
+                ".validate": "$format.matches(/^(pdf|docx|doc)$/) && newData.hasChildren(['fileName', 'size'])"
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "eventDocumentData": {
+      "$eventId": {
+        ".write": "auth != null && (auth.token.admin === true || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        "$docId": {
+          "$format": {
+            ".read": true,
+            ".validate": "$format.matches(/^(pdf|docx|doc)$/) && newData.isString() && newData.val().length <= 7000000"
+          }
+        }
+      }
+    }
+  }
+}

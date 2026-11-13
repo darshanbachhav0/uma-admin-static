@@ -123,7 +123,7 @@ secreto verdadero se incluye en el frontend.
 
 | # | Acción | Urgencia |
 |---|---|---|
-| 1 | Revisar y desplegar `database.rules.json` (`firebase deploy --only database`) | Alta |
+| 1 | Agregar `database.rules.event-documents.json` a las reglas existentes de `uma-erp` desde Firebase Console (no reemplazarlas; ver DEPLOYMENT.md) | Alta |
 | 2 | Confirmar si la app de estudiantes lee `/events` autenticada o anónimamente, y ajustar `/events/.read` en consecuencia | Alta |
 | 3 | Si administras cuentas manualmente, hazlo desde Firebase Console → Authentication | Informativo |
 | 4 | Planificar, si hace falta, la migración de las inscripciones fuera del árbol de eventos (sección 2) | Media |

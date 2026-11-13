@@ -47,27 +47,28 @@ El script valida las variables obligatorias y genera `config.js` junto a
 > sesión; sin estas reglas desplegadas, los estudiantes verán «Documentos no
 > disponibles» y la consola no podrá guardar documentos.
 
-**Lee [SECURITY.md](SECURITY.md) antes de desplegar.** El archivo `database.rules.json`
-es el perfil de compatibilidad, pensado para no romper la aplicación de
-estudiantes.
+> ⚠️ **No ejecutes `firebase deploy --only database` sobre `uma-erp`.** Ese
+> comando **reemplaza todas** las reglas del proyecto por `database.rules.json`,
+> y la base de datos `uma-erp` también sirve a otras partes de la app de
+> estudiantes (por ejemplo, Horario). Las reglas de este repositorio niegan
+> todo lo que no listan, así que esas funciones podrían dejar de funcionar.
 
-```bash
-npm install -g firebase-tools
-```
+Para habilitar los documentos de eventos, **agrega** solo las secciones nuevas
+a las reglas existentes:
 
-```bash
-firebase login
-```
+1. Inicia sesión en <https://console.firebase.google.com> con una cuenta que
+   tenga rol de **Propietario** o **Editor** en el proyecto `uma-erp`.
+2. Abre **Realtime Database → Reglas**.
+3. Copia `eventDocuments` y `eventDocumentData` desde
+   `database.rules.event-documents.json` y pégalos dentro de `"rules": { … }`,
+   junto a las demás rutas de primer nivel, sin borrar nada de lo existente.
+4. Pulsa **Publicar**.
 
-```bash
-firebase use <PROJECT_ID>
-```
+Comprobación: abre en el navegador
+`https://uma-erp-default-rtdb.firebaseio.com/eventDocuments/prueba.json`. Antes
+de publicar responde `Permission denied`; después debe responder `null`.
 
-```bash
-firebase deploy --only database
-```
-
-Para probarlas primero sin afectar producción, usa el simulador de reglas en
+Para probar reglas sin afectar producción, usa el simulador de reglas en
 Firebase Console → Realtime Database → Reglas → Simulador, o el emulador:
 
 ```bash
