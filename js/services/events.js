@@ -49,7 +49,7 @@ export function timing(event, now = Date.now()) {
  */
 export function validateEvent(input) {
   const errors = {};
-  const title = cleanText(input.title, 160);
+  const title = cleanText(input.title, 120);
   if (!title) errors.title = 'El título es obligatorio.';
   else if (title.length < 3) errors.title = 'El título debe tener al menos 3 caracteres.';
 
@@ -136,7 +136,7 @@ export async function deleteEvent(event) {
 export async function duplicateEvent(event) {
   const { user } = getSession();
   const id = db.ref(DB_PATHS.events).push().key;
-  const title = `${event.title} (copia)`.slice(0, 160);
+  const title = `${event.title} (copia)`.slice(0, 120);
 
   await db.ref(DB_PATHS.events).child(id).set({
     id,
