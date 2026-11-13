@@ -42,6 +42,11 @@ El script valida las variables obligatorias y genera `config.js` junto a
 
 ## 3. Reglas de seguridad de la base de datos
 
+> **Obligatorio para los documentos de eventos.** La página pública
+> `documentos.html` lee `/eventDocuments` y `/eventDocumentData` sin iniciar
+> sesión; sin estas reglas desplegadas, los estudiantes verán «Documentos no
+> disponibles» y la consola no podrá guardar documentos.
+
 **Lee [SECURITY.md](SECURITY.md) antes de desplegar.** El archivo `database.rules.json`
 es el perfil de compatibilidad, pensado para no romper la aplicación de
 estudiantes.

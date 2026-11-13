@@ -103,6 +103,8 @@ function normalizeEvent(id, value) {
     updatedAt: Number(value.updatedAt) || 0,
     registrationCount: Object.keys(registrations).length,
     registrations,
+    documentsUrl: typeof value.documentsUrl === 'string' ? value.documentsUrl : '',
+    documentCount: Number(value.documentCount) || 0,
   };
 }
 

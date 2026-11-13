@@ -11,9 +11,11 @@ import { button, field, select, setButtonLoading, textArea, textInput } from '..
 import { openOverlay } from '../ui/overlay.js';
 import { notify } from '../ui/toast.js';
 import { EVENT_STATUSES, saveEvent, validateEvent } from '../services/events.js';
+import { saveEventDocuments } from '../services/documents.js';
 import { suggestImage, creditText, hasUnsplashKey, UnsplashError } from '../services/unsplash.js';
 import { describeError, safeUrl } from '../utils/validate.js';
 import { fromDateTimeInputs, toDateInputValue, toTimeInputValue } from '../utils/format.js';
+import { createDocumentsField } from './event-documents-field.js';
 
 /**
  * @param {object|null} event Existing event, or null to create one.
@@ -21,6 +23,11 @@ import { fromDateTimeInputs, toDateInputValue, toTimeInputValue } from '../utils
  */
 export function openEventEditor(event, onSaved) {
   const isEdit = Boolean(event && event.id);
+  // Set once the event exists, so a retry after a failed document upload
+  // updates the same event instead of creating a second one.
+  let savedEventId = isEdit ? event.id : null;
+
+  const documentsField = createDocumentsField({ eventId: savedEventId });
 
   const titleInput = textInput({ maxlength: 160, placeholder: 'Feria de salud universitaria' });
   const titleField = field({ label: 'Título del evento', control: titleInput, required: true, span: true });
@@ -204,7 +211,11 @@ export function openEventEditor(event, onSaved) {
 
     h('section', { class: 'form-section' },
       h('h3', { class: 'form-section__title', text: 'Clasificación e imagen' }),
-      h('div', { class: 'form-grid' }, tagsField, h('div', { class: 'span-2' }, imagePicker))));
+      h('div', { class: 'form-grid' }, tagsField, h('div', { class: 'span-2' }, imagePicker))),
+
+    h('section', { class: 'form-section' },
+      h('h3', { class: 'form-section__title', text: 'Documentos para estudiantes (opcional)' }),
+      documentsField.node));
 
   form.addEventListener('submit', (submitEvent) => {
     submitEvent.preventDefault();
@@ -248,32 +259,69 @@ export function openEventEditor(event, onSaved) {
       imageCredit,
     });
 
-    if (Object.keys(errors).length) {
+    if (documentsField.isLoading()) {
+      notify.warning('Espera a que terminen de cargar los documentos.');
+      return;
+    }
+    const documentsValid = documentsField.validate();
+
+    if (Object.keys(errors).length || !documentsValid) {
       if (errors.title) titleField.setError(errors.title);
       if (errors.date) dateField.setError(errors.date);
-      const firstInvalid = form.querySelector('.field.is-invalid .input, .field.is-invalid .select');
+      const firstInvalid = form.querySelector('.field.is-invalid .input, .field.is-invalid .select, .doc-row.is-invalid .input');
       if (firstInvalid) firstInvalid.focus();
       notify.warning('Revisa los campos marcados antes de guardar.');
       return;
     }
+
+    const saveLabel = saveBtn.querySelector('.btn__label');
+    const originalLabel = saveLabel.textContent;
+    const finish = () => {
+      saveLabel.textContent = originalLabel;
+      setButtonLoading(saveBtn, false);
+      cancelBtn.disabled = false;
+      overlay.setBusy(false);
+    };
 
     setButtonLoading(saveBtn, true);
     cancelBtn.disabled = true;
     overlay.setBusy(true);
 
     try {
-      const id = await saveEvent(isEdit ? event.id : null, values);
-      notify.success(isEdit ? 'Evento actualizado correctamente.' : 'Evento creado correctamente.');
-      overlay.setBusy(false);
-      overlay.close('saved');
-      if (typeof onSaved === 'function') onSaved(id);
+      savedEventId = await saveEvent(savedEventId, values);
     } catch (error) {
       console.error('[events] no se pudo guardar el evento', error);
       notify.error(describeError(error, 'No se pudo guardar el evento. Inténtalo de nuevo.'));
-      setButtonLoading(saveBtn, false);
-      cancelBtn.disabled = false;
-      overlay.setBusy(false);
+      finish();
+      return;
     }
+
+    if (documentsField.shouldSave()) {
+      try {
+        await saveEventDocuments({
+          eventId: savedEventId,
+          eventTitle: values.title,
+          documents: documentsField.getDocuments(),
+          previous: documentsField.getPrevious(),
+          onProgress: (message) => { saveLabel.textContent = message; },
+        });
+      } catch (error) {
+        // The event itself is saved; keep the drawer open so the documents
+        // can be retried. `savedEventId` makes the retry update this event.
+        console.error('[events] no se pudieron guardar los documentos', error);
+        notify.error(
+          describeError(error, 'Inténtalo de nuevo. Si persiste, verifica que las reglas de la base de datos estén desplegadas.'),
+          'El evento se guardó, pero no sus documentos',
+        );
+        finish();
+        return;
+      }
+    }
+
+    notify.success(isEdit ? 'Evento actualizado correctamente.' : 'Evento creado correctamente.');
+    overlay.setBusy(false);
+    overlay.close('saved');
+    if (typeof onSaved === 'function') onSaved(savedEventId);
   }
 
   return overlay;

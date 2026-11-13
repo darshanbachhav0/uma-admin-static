@@ -250,6 +250,12 @@ export function mount(container, context) {
           class: 'badge',
           title: 'Inscritos',
         }, icon('users', { size: 12 }), h('span', { text: formatNumber(event.registrationCount) })),
+        event.documentCount
+          ? h('span', {
+            class: 'badge',
+            title: pluralize(event.documentCount, 'documento', 'documentos'),
+          }, icon('paperclip', { size: 12 }), h('span', { text: formatNumber(event.documentCount) }))
+          : null,
         h('span', { class: 'spacer' }),
         button({ label: 'Editar', variant: 'secondary', size: 'sm', icon: 'pencil', onClick: () => openEditor(event) }),
         menuTrigger({
@@ -287,6 +293,14 @@ export function mount(container, context) {
         h('dd', event.tags.length ? h('div', { class: 'row-2 row-wrap' }, ...event.tags.map(tag)) : EM_DASH),
         h('dt', { text: 'Descripción' }),
         h('dd', { style: { 'white-space': 'pre-wrap' }, text: event.description || EM_DASH }),
+        h('dt', { text: 'Documentos' }),
+        h('dd', event.documentCount && safeUrl(event.documentsUrl)
+          ? h('a', {
+            href: safeUrl(event.documentsUrl),
+            target: '_blank',
+            rel: 'noopener noreferrer',
+          }, `${pluralize(event.documentCount, 'documento', 'documentos')} · Abrir página de descarga`)
+          : 'Sin documentos'),
         h('dt', { text: 'Identificador' }),
         h('dd', h('code', { class: 'text-mono', text: event.id }))));
 
@@ -315,7 +329,7 @@ export function mount(container, context) {
   async function handleDuplicate(event) {
     try {
       await duplicateEvent(event);
-      notify.success('Evento duplicado. La copia se creó sin fecha ni inscripciones.');
+      notify.success('Evento duplicado. La copia se creó sin fecha, inscripciones ni documentos.');
     } catch (error) {
       console.error('[events] no se pudo duplicar el evento', error);
       notify.error(describeError(error, 'No se pudo duplicar el evento.'));
@@ -326,9 +340,14 @@ export function mount(container, context) {
     const registrations = event.registrationCount;
     await confirmDelete({
       itemLabel: event.title || '(Sin título)',
-      message: registrations
-        ? `Se eliminará el evento y sus ${formatNumber(registrations)} inscripciones. Esta acción no se puede deshacer.`
-        : 'Se eliminará el evento de forma permanente. Esta acción no se puede deshacer.',
+      message: [
+        registrations
+          ? `Se eliminará el evento y sus ${formatNumber(registrations)} inscripciones.`
+          : 'Se eliminará el evento de forma permanente.',
+        event.documentCount === 1 ? 'También se eliminará su documento adjunto.' : '',
+        event.documentCount > 1 ? `También se eliminarán sus ${formatNumber(event.documentCount)} documentos adjuntos.` : '',
+        'Esta acción no se puede deshacer.',
+      ].filter(Boolean).join(' '),
       confirmationPhrase: registrations >= 10 ? 'ELIMINAR' : '',
       onConfirm: async () => {
         try {

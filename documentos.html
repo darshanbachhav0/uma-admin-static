@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#e11d48" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Documentos del evento · Universidad María Auxiliadora</title>
+
+  <link rel="icon" href="assets/uma-logo.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+
+  <link rel="stylesheet" href="styles/tokens.css" />
+  <link rel="stylesheet" href="styles/base.css" />
+  <link rel="stylesheet" href="styles/components.css" />
+  <link rel="stylesheet" href="styles/public.css" />
+
+  <!-- Generated at build time by render-build.sh; only the public database URL is used here. -->
+  <script src="config.js"></script>
+</head>
+<body>
+  <div class="public">
+    <header class="public-header">
+      <div class="public-header__inner">
+        <img class="public-header__logo" src="assets/uma-logo.jpg" alt="Universidad María Auxiliadora" />
+      </div>
+    </header>
+
+    <main class="public-main" id="documents-root" aria-live="polite">
+      <div class="public-state" role="status">
+        <span class="spinner spinner--lg"></span>
+        <p>Cargando documentos…</p>
+      </div>
+    </main>
+
+    <footer class="public-footer">
+      <div class="public-footer__inner">Universidad María Auxiliadora</div>
+    </footer>
+  </div>
+
+  <noscript>
+    <p style="padding:24px;font-family:system-ui,sans-serif;text-align:center">
+      Para descargar los documentos, habilita JavaScript en tu navegador.
+    </p>
+  </noscript>
+
+  <script type="module" src="js/public/documents-page.js"></script>
+</body>
+</html>

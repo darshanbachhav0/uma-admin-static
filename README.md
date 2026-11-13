@@ -35,14 +35,18 @@ js/
     prefs.js                   Preferencias locales de visualización
   ui/                          Componentes reutilizables (dom, icons, controls,
                                overlay, confirm, menu, toast, states, pagination, chart)
-  services/                    events, registrations (vía store), unsplash
-  pages/                       login, dashboard, events, event-editor, registrations
+  services/                    events, documents, registrations (vía store), unsplash
+  pages/                       login, dashboard, events, event-editor,
+                               event-documents-field, registrations
+  public/                      documents-page (página pública de descarga)
   utils/                       format, validate, csv
 
 database.rules.json            Reglas de seguridad — perfil de compatibilidad
 firebase.json                  Configuración de despliegue
 docs/DEPLOYMENT.md             Pasos de despliegue
 docs/SECURITY.md               Modelo de seguridad
+docs/APP_INTEGRATION.md        Cambios necesarios en la app de estudiantes
+documentos.html                Página pública de descarga de documentos de un evento
 ```
 
 ## Desarrollo local
@@ -65,7 +69,7 @@ npx serve . -l 5173
 | Sección       | Ruta               | Contenido |
 |---------------|--------------------|-----------|
 | Dashboard     | `#/`               | KPIs de eventos e inscripciones, gráfico mensual, estado de eventos, próximos eventos, eventos recientes |
-| Eventos       | `#/eventos`        | Búsqueda, filtros, orden, tarjetas, editor en panel lateral |
+| Eventos       | `#/eventos`        | Búsqueda, filtros, orden, tarjetas, editor en panel lateral, documentos adjuntos |
 | Inscripciones | `#/inscripciones`  | Tabla agregada de todos los eventos, filtros, exportación CSV |
 
 Enlaces profundos admitidos: `#/eventos?nuevo=1`, `#/eventos?editar=<id>`,
@@ -79,10 +83,17 @@ la aplicación de estudiantes:
 ```
 /events/{eventId}
   id, title, description, location, tags[], status, startAt, imageUrl,
-  imageCredit?, createdBy, createdAt, updatedAt (opcional)
+  imageCredit?, createdBy, createdAt, updatedAt (opcional),
+  documentsUrl?, documentCount?           (solo si el evento tiene documentos)
   /registrations/{key}
     name, code, dni, facultyName, specialtyName, semester, mode, email,
     phone, registeredAt, uid
+
+/eventDocuments/{eventId}                 índice público de documentos
+  eventTitle, updatedAt, documents/{docId}: title, order,
+    files/{pdf|docx|doc}: fileName, contentType, size, uploadedAt
+
+/eventDocumentData/{eventId}/{docId}/{pdf|docx|doc}   contenido en base64
 
 /users/{uid}
   dni, stCode, role?, email?, createdAt?, createdBy?
@@ -95,6 +106,19 @@ temporal que se ve en la interfaz (Programado / Hoy / Finalizado) se deriva de
 La consola **no** crea, edita ni elimina cuentas en `/users` — solo lee el rol
 de la persona que inició sesión. La administración de cuentas se hace
 directamente en Firebase Console.
+
+## Documentos de eventos
+
+Al crear o editar un evento, la sección **Documentos para estudiantes
+(opcional)** permite adjuntar documentos, cada uno en PDF y/o Word (máx. 5 MB
+por archivo). Al guardar, el evento recibe `documentsUrl`, que apunta a
+`documentos.html?evento=<id>`: una página pública desde la que los
+estudiantes descargan los archivos. La app debe abrir ese enlace; consulta
+[docs/APP_INTEGRATION.md](docs/APP_INTEGRATION.md).
+
+Los archivos se guardan en Realtime Database, fuera de `/events`, para que
+la app no los descargue al listar eventos y para no requerir Firebase Storage
+(que exige el plan Blaze).
 
 ## Seguridad
 
