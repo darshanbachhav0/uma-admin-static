@@ -32,6 +32,24 @@ export function cleanText(value, maxLength = 2000, { multiline = false } = {}) {
   return text.trim().slice(0, maxLength);
 }
 
+/**
+ * Remove Markdown formatting marks that the student app would show literally.
+ *
+ * Text copied from chats and AI assistants often carries `**bold**` markers
+ * and `# Heading` prefixes. The app displays descriptions as plain text, so
+ * those marks would appear as stray symbols. The words are kept; only the
+ * marks are removed:
+ *   "**Tema:** Prevención"  -> "Tema: Prevención"
+ *   "## Ponentes"           -> "Ponentes"
+ * Single asterisks are kept, so "* item" bullet lists still work, and so are
+ * hashtags such as "#UMA" (no space after the #).
+ */
+export function stripMarkdownMarks(value) {
+  return String(value ?? '')
+    .replace(/\*{2,}/g, '')
+    .replace(/^[ \t]*#{1,6}[ \t]+/gm, '');
+}
+
 /** Normalise a comma separated tag list into unique, trimmed, lowercase tags. */
 export function parseTags(value, { max = 12, maxLength = 32 } = {}) {
   const seen = new Set();

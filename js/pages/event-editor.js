@@ -36,7 +36,7 @@ export function openEventEditor(event, onSaved) {
   const descField = field({
     label: 'Descripción',
     control: descInput,
-    hint: 'Se respetan los saltos de línea. Los enlaces (https://…) se pueden abrir con un clic.',
+    hint: 'Se respetan los saltos de línea y los enlaces (https://…) se pueden abrir. Los asteriscos de negrita (**) y los # de títulos se quitan al guardar, porque la app muestra texto simple.',
     span: true,
   });
 
