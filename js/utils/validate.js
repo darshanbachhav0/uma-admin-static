@@ -6,14 +6,30 @@ export function isEmail(value) {
   return EMAIL_RE.test(String(value || '').trim());
 }
 
-/** Collapse whitespace and strip control characters from free text. */
-export function cleanText(value, maxLength = 2000) {
-  return String(value ?? '')
-    // Strip C0 control characters and DEL — never ordinary spaces or hyphens.
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\x00-\x1F\x7F]/g, '')
-    .trim()
-    .slice(0, maxLength);
+/**
+ * Strip invisible control characters from free text.
+ *
+ * Single-line fields (titles, locations, tags) turn line breaks and tabs into
+ * spaces so pasted text never glues words together. Multi-line fields
+ * (descriptions) keep their line breaks and blank lines, so lists and
+ * paragraphs stay as the administrator wrote them.
+ */
+export function cleanText(value, maxLength = 2000, { multiline = false } = {}) {
+  let text = String(value ?? '').replace(/\r\n?/g, '\n');
+  if (multiline) {
+    text = text
+      // Remove control characters except tab (\x09) and line break (\x0A).
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\x00-\x08\x0B-\x1F\x7F]/g, '')
+      .replace(/[ \t]+$/gm, '')     // trailing spaces on each line
+      .replace(/\n{3,}/g, '\n\n');  // at most one empty line in a row
+  } else {
+    text = text
+      .replace(/[\t\n]+/g, ' ')
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\x00-\x1F\x7F]/g, '');
+  }
+  return text.trim().slice(0, maxLength);
 }
 
 /** Normalise a comma separated tag list into unique, trimmed, lowercase tags. */

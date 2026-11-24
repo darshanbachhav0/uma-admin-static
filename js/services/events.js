@@ -54,7 +54,7 @@ export function validateEvent(input) {
   else if (title.length < 3) errors.title = 'El título debe tener al menos 3 caracteres.';
 
   const location = cleanText(input.location, 160);
-  const description = cleanText(input.description, 4000);
+  const description = cleanText(input.description, 4000, { multiline: true });
 
   if (input.time && !input.date) errors.date = 'Indica la fecha del evento.';
   if (input.date && input.startAt === null) {

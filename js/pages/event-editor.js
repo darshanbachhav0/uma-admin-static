@@ -32,7 +32,7 @@ export function openEventEditor(event, onSaved) {
   const titleInput = textInput({ maxlength: 120, placeholder: 'Feria de salud universitaria' });
   const titleField = field({ label: 'Título del evento', control: titleInput, required: true, span: true });
 
-  const descInput = textArea({ maxlength: 4000, rows: 5, placeholder: 'Describe el evento, el público objetivo y los detalles de participación.' });
+  const descInput = textArea({ maxlength: 4000, rows: 10, placeholder: 'Describe el evento, el público objetivo y los detalles de participación.' });
   const descField = field({ label: 'Descripción', control: descInput, span: true });
 
   const statusSelect = select({ options: EVENT_STATUSES });
