@@ -49,7 +49,8 @@
 
         "title":       { ".validate": "newData.isString() && newData.val().length <= 200" },
         "description": { ".validate": "newData.isString() && newData.val().length <= 8000" },
-        "location":    { ".validate": "newData.isString() && newData.val().length <= 200" },
+        "location":    { ".validate": "newData.isString() && newData.val().length <= 300" },
+        "locationUrl": { ".validate": "newData.isString() && newData.val().length <= 2000 && newData.val().matches(/^https?:\\/\\//)" },
         "status":      { ".validate": "newData.isString() && newData.val().length <= 32" },
         "startAt":     { ".validate": "newData.isNumber()" },
         "createdAt":   { ".validate": "newData.isNumber()" },

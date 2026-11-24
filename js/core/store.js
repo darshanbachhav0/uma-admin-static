@@ -93,6 +93,7 @@ function normalizeEvent(id, value) {
     title: typeof value.title === 'string' ? value.title : '',
     description: typeof value.description === 'string' ? value.description : '',
     location: typeof value.location === 'string' ? value.location : '',
+    locationUrl: typeof value.locationUrl === 'string' ? value.locationUrl : '',
     status: value.status === 'ongoing' ? 'ongoing' : 'upcoming',
     startAt: Number(value.startAt) || 0,
     imageUrl: typeof value.imageUrl === 'string' ? value.imageUrl : '',

@@ -534,4 +534,6 @@
 .detail-list { display: grid; grid-template-columns: minmax(120px, 34%) 1fr; gap: var(--space-3) var(--space-4); }
 .detail-list dt { font-size: var(--text-sm); color: var(--text-secondary); }
 .detail-list dd { margin: 0; font-size: var(--text-base); word-break: break-word; }
+/* Links found inside event text (Zoom, forms, websites). */
+.text-link { text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
 @media (max-width: 480px) { .detail-list { grid-template-columns: 1fr; gap: var(--space-1) 0; } .detail-list dd { margin-bottom: var(--space-3); } }
