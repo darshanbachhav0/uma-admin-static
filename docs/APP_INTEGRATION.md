@@ -96,3 +96,63 @@ Implementa lo siguiente:
 
 Abre la URL de `documentsUrl` (visible en el detalle del evento en la consola,
 **Ver detalle → Documentos**) en el navegador del teléfono.
+
+---
+
+# Enlaces en la ubicación y en la descripción
+
+## Contrato de datos
+
+| Campo | Tipo | Ejemplo |
+|---|---|---|
+| `location` | string (texto libre, hasta 300 caracteres) | `Virtual vía Zoom` |
+| `locationUrl` | string (http/https, opcional) | `https://uma-edu-pe.zoom.us/j/87934007995` |
+| `description` | string (texto con saltos de línea `\n`) | `🔗 Enlace de acceso:\nhttps://…` |
+
+- `locationUrl` solo existe cuando el evento tiene un enlace de ubicación
+  (Zoom, Google Meet, Google Maps…). La consola siempre lo guarda con
+  `http://` o `https://`. Si el administrador pega el enlace dentro de
+  «Ubicación», la consola también lo copia a `locationUrl`.
+- `location` y `description` pueden contener enlaces escritos como texto
+  (`https://…` o `www.…`). La consola los muestra como enlaces; la app debe
+  hacer lo mismo.
+
+## Prompt para el desarrollador de la app (en inglés)
+
+```text
+In this student app for Universidad María Auxiliadora (UMA), events are read
+from Firebase Realtime Database at /events/{eventId}. Make links in events
+clickable. Do not change how events are written or how registration works.
+
+1. New optional field: locationUrl (string). When it exists and starts with
+   "http://" or "https://", show the location row (pin icon + location text)
+   as tappable, plus a clear button such as "Unirse por Zoom" (if the URL
+   contains "zoom.us"), "Abrir en Google Meet" (if it contains
+   "meet.google.com"), "Ver en el mapa" (if it contains "maps.google",
+   "goo.gl/maps" or "maps.app.goo.gl") or otherwise "Abrir enlace".
+   Tapping opens the URL in the external browser / Zoom app (for example
+   Linking.openURL in React Native, url_launcher with
+   LaunchMode.externalApplication in Flutter, Intent.ACTION_VIEW on Android).
+   If locationUrl is missing, show the location exactly as today.
+
+2. Links written inside the location text and the description must be
+   clickable. Detect "https://…", "http://…" and "www.…" (prefix "https://"
+   for www). Do not include trailing punctuation such as . , ; : ! ? or a
+   closing ")" that was opened before the link. Render the rest as normal
+   text and the links underlined in the brand color; tapping opens them
+   externally. Only http/https links may be opened; never javascript:, file:,
+   intent: or other schemes.
+
+3. Keep the description's line breaks and blank lines exactly as stored
+   (\n). Do not collapse them into one paragraph and do not cut the text with
+   a "max lines" limit on the event detail screen.
+
+4. If opening a link fails, show a short message ("No se pudo abrir el
+   enlace") instead of crashing.
+
+5. Test: an event with location "Virtual vía Zoom" and locationUrl
+   "https://uma-edu-pe.zoom.us/j/87934007995" shows a "Unirse por Zoom"
+   button that opens Zoom; a description containing a Zoom link shows it as
+   a tappable link with the surrounding text and line breaks intact; events
+   without links look exactly as before.
+```

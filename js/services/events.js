@@ -6,12 +6,14 @@
  *   { id, title, description, location, tags[], status, startAt, imageUrl,
  *     imageCredit?, createdBy, createdAt, registrations? }
  *
- * `updatedAt` is the only added field and is additive/optional.
+ * Added fields are all optional: `updatedAt`, `locationUrl` (an http(s) link
+ * for the location, usually the Zoom meeting) and the document fields.
  * `status` keeps its two legacy values: 'upcoming' and 'ongoing'.
  */
 import { db, DB_PATHS } from '../core/firebase.js';
 import { getSession } from '../core/session.js';
 import { cleanText, parseTags, safeUrl } from '../utils/validate.js';
+import { findFirstUrl, toHref } from '../ui/linkify.js';
 import { startOfDay } from '../utils/format.js';
 import { documentsDeletionUpdate } from './documents.js';
 
@@ -53,8 +55,20 @@ export function validateEvent(input) {
   if (!title) errors.title = 'El título es obligatorio.';
   else if (title.length < 3) errors.title = 'El título debe tener al menos 3 caracteres.';
 
-  const location = cleanText(input.location, 160);
+  const location = cleanText(input.location, 300);
   const description = cleanText(input.description, 4000, { multiline: true });
+
+  // Optional link for the location (Zoom, Meet, Google Maps…). When the field
+  // is empty but a link was pasted into the location itself, use that one.
+  const rawLocationUrl = String(input.locationUrl ?? '').trim();
+  let locationUrl = '';
+  if (rawLocationUrl) {
+    locationUrl = toHref(rawLocationUrl);
+    if (!locationUrl) errors.locationUrl = 'El enlace debe empezar con https:// (por ejemplo, https://zoom.us/j/…).';
+    else if (locationUrl.length > 2000) errors.locationUrl = 'El enlace es demasiado largo.';
+  } else {
+    locationUrl = findFirstUrl(location);
+  }
 
   if (input.time && !input.date) errors.date = 'Indica la fecha del evento.';
   if (input.date && input.startAt === null) {
@@ -65,6 +79,7 @@ export function validateEvent(input) {
     title,
     description,
     location,
+    locationUrl,
     status: input.status === 'ongoing' ? 'ongoing' : 'upcoming',
     startAt: input.startAt || 0,
     tags: parseTags(input.tags),
@@ -99,6 +114,8 @@ export async function saveEvent(eventId, values) {
     title: values.title,
     description: values.description,
     location: values.location,
+    // null removes a link that was cleared, so the app stops showing it.
+    locationUrl: values.locationUrl || null,
     tags: values.tags,
     status: values.status,
     startAt: values.startAt,
@@ -143,6 +160,7 @@ export async function duplicateEvent(event) {
     title,
     description: event.description,
     location: event.location,
+    ...(safeUrl(event.locationUrl) ? { locationUrl: safeUrl(event.locationUrl) } : {}),
     tags: event.tags,
     status: 'upcoming',
     startAt: 0,

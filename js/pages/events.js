@@ -21,6 +21,7 @@ import {
   deleteEvent, duplicateEvent, statusLabel, statusVariant, timing,
 } from '../services/events.js';
 import { describeError, safeUrl } from '../utils/validate.js';
+import { externalLink, linkify } from '../ui/linkify.js';
 import { formatDateTime, formatNumber, pluralize, EM_DASH } from '../utils/format.js';
 
 const DATE_FILTERS = [
@@ -240,7 +241,12 @@ export function mount(container, context) {
             h('span', { text: event.startAt ? formatDateTime(event.startAt) : 'Sin fecha programada' })),
           h('div', { class: 'event-card__meta-row' },
             icon('map-pin', { size: 15 }),
-            h('span', { text: event.location || 'Sin ubicación' }))),
+            h('span', { text: event.location || 'Sin ubicación' })),
+          safeUrl(event.locationUrl)
+            ? h('div', { class: 'event-card__meta-row' },
+              icon('external-link', { size: 15 }),
+              externalLink(safeUrl(event.locationUrl), 'Abrir enlace de la ubicación'))
+            : null),
         event.tags.length
           ? h('div', { class: 'event-card__tags' }, ...event.tags.slice(0, 4).map(tag))
           : null),
@@ -288,11 +294,14 @@ export function mount(container, context) {
         h('dt', { text: 'Fecha y hora' }),
         h('dd', { text: event.startAt ? formatDateTime(event.startAt) : 'Sin fecha programada' }),
         h('dt', { text: 'Ubicación' }),
-        h('dd', { text: event.location || EM_DASH }),
+        h('dd', event.location ? linkify(event.location) : EM_DASH),
+        ...(safeUrl(event.locationUrl) && !event.location.includes(event.locationUrl)
+          ? [h('dt', { text: 'Enlace' }), h('dd', externalLink(safeUrl(event.locationUrl)))]
+          : []),
         h('dt', { text: 'Etiquetas' }),
         h('dd', event.tags.length ? h('div', { class: 'row-2 row-wrap' }, ...event.tags.map(tag)) : EM_DASH),
         h('dt', { text: 'Descripción' }),
-        h('dd', { style: { 'white-space': 'pre-wrap' }, text: event.description || EM_DASH }),
+        h('dd', { style: { 'white-space': 'pre-wrap' } }, event.description ? linkify(event.description) : EM_DASH),
         h('dt', { text: 'Documentos' }),
         h('dd', event.documentCount && safeUrl(event.documentsUrl)
           ? h('a', {

@@ -118,7 +118,8 @@
 .event-card__meta { display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-secondary); }
 .event-card__meta-row { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .event-card__meta-row svg { color: var(--text-tertiary); flex: none; }
-.event-card__meta-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.event-card__meta-row span,
+.event-card__meta-row a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .event-card__tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .event-card__foot {
   display: flex; align-items: center; gap: var(--space-2);

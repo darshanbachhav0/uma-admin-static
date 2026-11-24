@@ -33,7 +33,12 @@ export function openEventEditor(event, onSaved) {
   const titleField = field({ label: 'Título del evento', control: titleInput, required: true, span: true });
 
   const descInput = textArea({ maxlength: 4000, rows: 10, placeholder: 'Describe el evento, el público objetivo y los detalles de participación.' });
-  const descField = field({ label: 'Descripción', control: descInput, span: true });
+  const descField = field({
+    label: 'Descripción',
+    control: descInput,
+    hint: 'Se respetan los saltos de línea. Los enlaces (https://…) se pueden abrir con un clic.',
+    span: true,
+  });
 
   const statusSelect = select({ options: EVENT_STATUSES });
   const statusField = field({
@@ -48,8 +53,21 @@ export function openEventEditor(event, onSaved) {
   const timeInput = textInput({ type: 'time' });
   const timeField = field({ label: 'Hora', control: timeInput, hint: 'Hora local.' });
 
-  const locationInput = textInput({ maxlength: 160, placeholder: 'Auditorio principal, Pabellón B' });
+  const locationInput = textInput({ maxlength: 300, placeholder: 'Auditorio principal, Pabellón B · Virtual vía Zoom' });
   const locationField = field({ label: 'Ubicación', control: locationInput, span: true });
+
+  const locationUrlInput = textInput({
+    type: 'url',
+    maxlength: 2000,
+    placeholder: 'https://uma-edu-pe.zoom.us/j/…',
+    autocomplete: 'off',
+  });
+  const locationUrlField = field({
+    label: 'Enlace de la ubicación (opcional)',
+    control: locationUrlInput,
+    hint: 'Zoom, Google Meet o Google Maps. Los estudiantes lo abren con un toque. Si pegas el enlace en «Ubicación», se usa automáticamente.',
+    span: true,
+  });
 
   const tagsInput = textInput({ maxlength: 200, placeholder: 'salud, charla, feria' });
   const tagsField = field({
@@ -184,6 +202,7 @@ export function openEventEditor(event, onSaved) {
     titleInput.value = event.title || '';
     descInput.value = event.description || '';
     locationInput.value = event.location || '';
+    locationUrlInput.value = event.locationUrl || '';
     tagsInput.value = (event.tags || []).join(', ');
     statusSelect.value = event.status || 'upcoming';
     dateInput.value = toDateInputValue(event.startAt);
@@ -207,7 +226,7 @@ export function openEventEditor(event, onSaved) {
 
     h('section', { class: 'form-section' },
       h('h3', { class: 'form-section__title', text: 'Programación' }),
-      h('div', { class: 'form-grid' }, dateField, timeField, locationField)),
+      h('div', { class: 'form-grid' }, dateField, timeField, locationField, locationUrlField)),
 
     h('section', { class: 'form-section' },
       h('h3', { class: 'form-section__title', text: 'Clasificación e imagen' }),
@@ -243,13 +262,14 @@ export function openEventEditor(event, onSaved) {
   async function handleSave() {
     if (saveBtn.dataset.busy === '1') return;
 
-    [titleField, dateField, timeField, tagsField, urlField].forEach((f) => f.clearError());
+    [titleField, dateField, timeField, locationUrlField, tagsField, urlField].forEach((f) => f.clearError());
 
     const startAt = dateInput.value ? fromDateTimeInputs(dateInput.value, timeInput.value) : 0;
     const { values, errors } = validateEvent({
       title: titleInput.value,
       description: descInput.value,
       location: locationInput.value,
+      locationUrl: locationUrlInput.value,
       status: statusSelect.value,
       tags: tagsInput.value,
       date: dateInput.value,
@@ -268,6 +288,7 @@ export function openEventEditor(event, onSaved) {
     if (Object.keys(errors).length || !documentsValid) {
       if (errors.title) titleField.setError(errors.title);
       if (errors.date) dateField.setError(errors.date);
+      if (errors.locationUrl) locationUrlField.setError(errors.locationUrl);
       const firstInvalid = form.querySelector('.field.is-invalid .input, .field.is-invalid .select, .doc-row.is-invalid .input');
       if (firstInvalid) firstInvalid.focus();
       notify.warning('Revisa los campos marcados antes de guardar.');
