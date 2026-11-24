@@ -12,7 +12,7 @@
  */
 import { db, DB_PATHS } from '../core/firebase.js';
 import { getSession } from '../core/session.js';
-import { cleanText, parseTags, safeUrl } from '../utils/validate.js';
+import { cleanText, parseTags, safeUrl, stripMarkdownMarks } from '../utils/validate.js';
 import { findFirstUrl, toHref } from '../ui/linkify.js';
 import { startOfDay } from '../utils/format.js';
 import { documentsDeletionUpdate } from './documents.js';
@@ -56,7 +56,9 @@ export function validateEvent(input) {
   else if (title.length < 3) errors.title = 'El título debe tener al menos 3 caracteres.';
 
   const location = cleanText(input.location, 300);
-  const description = cleanText(input.description, 4000, { multiline: true });
+  // The app shows plain text, so pasted "**bold**" / "# heading" marks are
+  // removed instead of appearing as stray symbols.
+  const description = cleanText(stripMarkdownMarks(input.description), 4000, { multiline: true });
 
   // Optional link for the location (Zoom, Meet, Google Maps…). When the field
   // is empty but a link was pasted into the location itself, use that one.
