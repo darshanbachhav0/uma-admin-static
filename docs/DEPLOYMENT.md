@@ -17,13 +17,11 @@ sitio estático y terminan en `config.js`, que es público por diseño.
 | `FIREBASE_AUTH_DOMAIN` | sí | `<proyecto>.firebaseapp.com` |
 | `FIREBASE_DATABASE_URL` | sí | URL de Realtime Database |
 | `FIREBASE_PROJECT_ID` | sí | ID del proyecto |
-| `FIREBASE_STORAGE_BUCKET` | sí | Bucket (no se usa, pero el SDK lo espera) |
+| `FIREBASE_STORAGE_BUCKET` | sí | Bucket de Firebase Storage (por ejemplo `uma-erp.firebasestorage.app`). Se usa para las imágenes que se suben desde el editor de eventos. |
 | `FIREBASE_MESSAGING_SENDER_ID` | sí | Sender ID |
 | `FIREBASE_APP_ID` | sí | App ID |
 | `FIREBASE_MEASUREMENT_ID` | sí | Measurement ID |
 | `UNSPLASH_ACCESS_KEY` | no | Access Key **pública** de Unsplash. Sin ella, la sugerencia de imágenes funciona en modo limitado y el administrador puede pegar una URL manualmente. |
-| `CLOUDINARY_CLOUD_NAME` | no | Nombre de la cuenta de Cloudinary (*cloud name*). Activa el botón **Subir imagen** del editor de eventos. |
-| `CLOUDINARY_UPLOAD_PRESET` | no | Nombre del *upload preset* **Unsigned** de Cloudinary. Ver «Subida de imágenes» abajo. |
 
 Nunca pongas aquí la Secret Key de Unsplash ni una clave de cuenta de servicio:
 todo lo que entra en `config.js` es visible para cualquiera que abra el sitio.
@@ -77,41 +75,36 @@ Firebase Console → Realtime Database → Reglas → Simulador, o el emulador:
 firebase emulators:start --only database,auth
 ```
 
-## Subida de imágenes de eventos (Cloudinary)
+## Imágenes de eventos (Firebase Storage)
 
 El editor de eventos puede subir una imagen desde la computadora. Antes de
 subirla, el navegador la ajusta a **1600 × 900 px (16:9) en JPEG**: las fotos
 con forma cercana a 16:9 se recortan al centro y los afiches o imágenes
 verticales se muestran completos sobre un fondo difuminado, para no cortar el
-texto. La imagen se guarda en Cloudinary y su enlace `https://` va en el campo
-`imageUrl` del evento, así que **la app de estudiantes no necesita cambios**.
+texto. La imagen se guarda en Firebase Storage (`eventImages/…`) y su enlace
+`https://firebasestorage.googleapis.com/…` va en el campo `imageUrl` del
+evento, así que **la app de estudiantes no necesita cambios**.
 
-Se usa Cloudinary porque Firebase Storage exige el plan de pago Blaze. El plan
-gratuito de Cloudinary es suficiente para las imágenes de eventos.
+Las imágenes que se reemplazan o cuyo evento se elimina se borran de Storage
+(salvo que otro evento, por ejemplo una copia duplicada, use la misma).
 
-Configuración (una sola vez):
+Requisitos (una sola vez):
 
-1. Crea una cuenta gratuita en <https://cloudinary.com> (puede ser con el
-   correo del área). En el panel (*Dashboard*) copia el **Cloud name**.
-2. Ve a **Settings → Upload → Upload presets → Add upload preset**:
-   - *Signing mode*: **Unsigned**.
-   - *Asset folder*: `uma-eventos`.
-   - *Allowed formats*: `jpg` (el editor siempre sube JPEG).
-   - En *Upload Manipulations → Incoming transformation* puedes poner un
-     límite de tamaño, por ejemplo `c_limit,w_1600,h_900`.
-   - Guarda y copia el **nombre del preset**.
-3. En Render → tu sitio → **Environment**, agrega
-   `CLOUDINARY_CLOUD_NAME` y `CLOUDINARY_UPLOAD_PRESET` y vuelve a desplegar
-   (*Manual Deploy → Deploy latest commit*).
+1. Firebase Console → **Storage**: debe estar activado (requiere el plan
+   Blaze). Copia el nombre del bucket (`gs://…`, sin `gs://`) y verifica que
+   coincide con `FIREBASE_STORAGE_BUCKET` en Render.
+2. Firebase Console → Storage → **Reglas**: agrega el bloque
+   `match /eventImages/{folder}/{fileName}` y la función `isEventAdmin()` de
+   [`storage.rules.event-images`](../storage.rules.event-images) dentro de
+   `match /b/{bucket}/o { … }`, **sin borrar las reglas que ya existan** (la
+   app puede usarlas), cambia `ADMIN_EMAIL@uma.edu.pe` por el correo de la
+   cuenta de la consola y haz clic en **Publicar**.
+   - Para varios administradores, agrega sus correos a la lista.
+   - Las reglas de Storage no pueden leer `users/{uid}/role` de la base de
+     datos; por eso se usa la lista de correos (o un *custom claim* `admin`).
 
-Ambos valores son públicos (no son claves secretas). Nunca pongas el
-*API Secret* de Cloudinary en Render ni en el código. Como un preset Unsigned
-permite subir imágenes a quien conozca su nombre, limita los formatos y la
-carpeta como se indica arriba y revisa de vez en cuando la carpeta
-`uma-eventos` en Cloudinary.
-
-Sin estas variables, el botón **Subir imagen** muestra un aviso y todo lo
-demás (Unsplash, pegar una URL) sigue funcionando igual.
+No uses `firebase deploy --only storage` con este archivo: reemplazaría todas
+las reglas de Storage del proyecto.
 
 ## 4. Administración de cuentas
 

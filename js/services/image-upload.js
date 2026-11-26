@@ -6,14 +6,14 @@
  *      - pictures that are already close to 16:9 are centre-cropped;
  *      - posters, flyers and other tall or very wide pictures are shown whole,
  *        centred on a blurred copy of themselves, so no text is cut off.
- * 2. `uploadEventImage(blob)` sends the result to Cloudinary with an
- *    *unsigned upload preset* and returns its https address, which is stored
- *    in the event's existing `imageUrl` field. The student app needs no change.
+ * 2. `uploadEventImage(blob)` stores the result in Firebase Storage under
+ *    `eventImages/` and returns its https download address, which goes in the
+ *    event's existing `imageUrl` field. The student app needs no change.
  *
- * Cloudinary is used because Firebase Storage requires the paid Blaze plan.
- * Only the public cloud name and preset name are in the browser; there is no
- * secret key (see docs/DEPLOYMENT.md).
+ * Storage security rules: see storage.rules.event-images and
+ * docs/DEPLOYMENT.md.
  */
+import { storage } from '../core/firebase.js';
 
 export const TARGET_WIDTH = 1600;
 export const TARGET_HEIGHT = 900;
@@ -33,20 +33,11 @@ export class ImageUploadError extends Error {
   }
 }
 
-function readConfig() {
-  const raw = (window.umaConfig && window.umaConfig.imageUpload) || {};
-  const clean = (value) => {
-    const text = String(value || '').trim();
-    // An unreplaced "${VAR}" placeholder means the variable was not set.
-    return /^[A-Za-z0-9_-]+$/.test(text) ? text : '';
-  };
-  return { cloudName: clean(raw.cloudName), uploadPreset: clean(raw.uploadPreset) };
-}
+const STORAGE_FOLDER = 'eventImages';
 
-/** True when the Cloudinary cloud name and upload preset are configured. */
+/** True when Firebase Storage is available (bucket configured, SDK loaded). */
 export function isImageUploadConfigured() {
-  const { cloudName, uploadPreset } = readConfig();
-  return Boolean(cloudName && uploadPreset);
+  return Boolean(storage);
 }
 
 function checkFile(file) {
@@ -199,48 +190,100 @@ export async function prepareEventImage(file) {
   }
 }
 
+function randomId() {
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function describeStorageError(error) {
+  const code = error && error.code ? String(error.code) : '';
+  if (code === 'storage/unauthorized') {
+    return 'No tienes permiso para subir imágenes. Revisa que las reglas de Storage (storage.rules.event-images) estén publicadas e incluyan tu cuenta.';
+  }
+  if (code === 'storage/quota-exceeded') return 'Se superó la cuota de Firebase Storage.';
+  if (code === 'storage/retry-limit-exceeded') return 'La conexión es inestable. Inténtalo de nuevo.';
+  if (code === 'storage/unauthenticated') return 'Tu sesión expiró. Vuelve a iniciar sesión.';
+  if (code === 'storage/bucket-not-found' || code === 'storage/project-not-found') {
+    return 'Firebase Storage no está activado en el proyecto o FIREBASE_STORAGE_BUCKET no es correcto.';
+  }
+  return 'No se pudo subir la imagen. Inténtalo de nuevo.';
+}
+
 /**
- * Upload a prepared JPEG to Cloudinary.
- * @returns {Promise<string>} The https address of the uploaded image.
+ * Upload a prepared JPEG to Firebase Storage.
+ * @param {Blob} blob
+ * @param {{signal?:AbortSignal, onProgress?:(percent:number)=>void, folder?:string}} [options]
+ * @returns {Promise<string>} The https download address of the image.
  */
-export async function uploadEventImage(blob, { signal } = {}) {
-  const { cloudName, uploadPreset } = readConfig();
-  if (!cloudName || !uploadPreset) {
-    throw new ImageUploadError('La subida de imágenes no está configurada. Revisa CLOUDINARY_CLOUD_NAME y CLOUDINARY_UPLOAD_PRESET en Render.');
+export async function uploadEventImage(blob, { signal, onProgress, folder } = {}) {
+  if (!storage) {
+    throw new ImageUploadError('Firebase Storage no está disponible. Revisa FIREBASE_STORAGE_BUCKET en Render.');
+  }
+  const safeFolder = /^[A-Za-z0-9_-]{1,64}$/.test(folder || '') ? folder : 'nuevos';
+  const path = `${STORAGE_FOLDER}/${safeFolder}/${Date.now()}-${randomId()}.jpg`;
+  const ref = storage.ref(path);
+  const task = ref.put(blob, {
+    contentType: 'image/jpeg',
+    cacheControl: 'public, max-age=31536000, immutable',
+  });
+
+  const onAbort = () => task.cancel();
+  if (signal) {
+    if (signal.aborted) task.cancel();
+    else signal.addEventListener('abort', onAbort, { once: true });
   }
 
-  const form = new FormData();
-  form.append('file', blob, 'evento.jpg');
-  form.append('upload_preset', uploadPreset);
-
-  let response;
   try {
-    response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/image/upload`, {
-      method: 'POST',
-      body: form,
-      signal,
+    await new Promise((resolve, reject) => {
+      task.on('state_changed',
+        (snapshot) => {
+          if (typeof onProgress === 'function' && snapshot.totalBytes) {
+            onProgress(Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100));
+          }
+        },
+        reject,
+        resolve);
     });
   } catch (error) {
-    if (error.name === 'AbortError') throw error;
-    throw new ImageUploadError('No hay conexión con el servicio de imágenes. Revisa tu red e inténtalo de nuevo.');
+    if (error && error.code === 'storage/canceled') {
+      throw Object.assign(new Error('Subida cancelada'), { name: 'AbortError' });
+    }
+    console.error('[imagenes] Firebase Storage', error);
+    throw new ImageUploadError(describeStorageError(error));
+  } finally {
+    if (signal) signal.removeEventListener('abort', onAbort);
   }
 
-  let data = {};
-  try { data = await response.json(); } catch { /* handled below */ }
-
-  if (!response.ok) {
-    const detail = data && data.error && data.error.message ? String(data.error.message) : '';
-    console.error('[imagenes] Cloudinary respondió', response.status, detail);
-    if (/preset/i.test(detail)) {
-      throw new ImageUploadError('El «upload preset» de Cloudinary no existe o no es de tipo Unsigned. Revisa la configuración.');
-    }
-    if (/cloud name|unknown api key|invalid cloud/i.test(detail) || response.status === 401) {
-      throw new ImageUploadError('El nombre de la cuenta de Cloudinary (cloud name) no es correcto.');
-    }
-    throw new ImageUploadError('No se pudo subir la imagen. Inténtalo de nuevo.');
-  }
-
-  const url = String((data && data.secure_url) || '');
-  if (!/^https:\/\//.test(url)) throw new ImageUploadError('El servicio de imágenes no devolvió un enlace válido.');
+  const url = String(await ref.getDownloadURL());
+  if (!/^https:\/\//.test(url)) throw new ImageUploadError('Firebase Storage no devolvió un enlace válido.');
   return url;
+}
+
+/** True when `url` is an image this console uploaded to the project's bucket. */
+export function isUploadedEventImage(url) {
+  if (!storage || typeof url !== 'string') return false;
+  let parsed;
+  try { parsed = new URL(url); } catch { return false; }
+  if (parsed.protocol !== 'https:') return false;
+  const bucket = storage.app.options.storageBucket;
+  const inBucket = parsed.hostname === 'firebasestorage.googleapis.com'
+    && parsed.pathname.startsWith(`/v0/b/${bucket}/o/`);
+  if (!inBucket) return false;
+  const objectPath = decodeURIComponent(parsed.pathname.slice(`/v0/b/${bucket}/o/`.length));
+  return objectPath.startsWith(`${STORAGE_FOLDER}/`);
+}
+
+/**
+ * Delete an uploaded image. Never throws: a leftover file is harmless, so a
+ * failed clean-up must not block saving or deleting an event.
+ */
+export async function deleteUploadedEventImage(url) {
+  if (!isUploadedEventImage(url)) return;
+  try {
+    await storage.refFromURL(url).delete();
+  } catch (error) {
+    if (error && error.code === 'storage/object-not-found') return;
+    console.warn('[imagenes] no se pudo borrar la imagen anterior', error);
+  }
 }

@@ -360,7 +360,7 @@ export function mount(container, context) {
       confirmationPhrase: registrations >= 10 ? 'ELIMINAR' : '',
       onConfirm: async () => {
         try {
-          await deleteEvent(event);
+          await deleteEvent(event, eventsStore.state.items);
           notify.success('Evento eliminado.');
         } catch (error) {
           console.error('[events] no se pudo eliminar el evento', error);

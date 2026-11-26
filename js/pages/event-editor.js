@@ -10,11 +10,13 @@ import { icon } from '../ui/icons.js';
 import { button, field, select, setButtonLoading, textArea, textInput } from '../ui/controls.js';
 import { openOverlay } from '../ui/overlay.js';
 import { notify } from '../ui/toast.js';
-import { EVENT_STATUSES, saveEvent, validateEvent } from '../services/events.js';
+import { EVENT_STATUSES, isImageInUse, saveEvent, validateEvent } from '../services/events.js';
+import { eventsStore } from '../core/store.js';
 import { saveEventDocuments } from '../services/documents.js';
 import { suggestImage, creditText, hasUnsplashKey, UnsplashError } from '../services/unsplash.js';
 import {
-  ACCEPT_ATTRIBUTE, ImageUploadError, isImageUploadConfigured, prepareEventImage, uploadEventImage,
+  ACCEPT_ATTRIBUTE, ImageUploadError, deleteUploadedEventImage, isImageUploadConfigured, prepareEventImage,
+  uploadEventImage,
 } from '../services/image-upload.js';
 import { describeError, safeUrl } from '../utils/validate.js';
 import { fromDateTimeInputs, toDateInputValue, toTimeInputValue } from '../utils/format.js';
@@ -134,6 +136,11 @@ export function openEventEditor(event, onSaved) {
   // ---- Upload from the computer ----------------------------------------
   let uploadController = null;
   let uploadedNote = '';
+  // Clean-up bookkeeping: images uploaded while this editor is open, and the
+  // image currently stored in the database for this event.
+  const originalImageUrl = imageUrl;
+  let persistedImageUrl = imageUrl;
+  const sessionUploads = [];
   const canUpload = isImageUploadConfigured();
   const fileInput = h('input', {
     type: 'file',
@@ -155,7 +162,7 @@ export function openEventEditor(event, onSaved) {
     size: 'sm',
     onClick: () => {
       if (!canUpload) {
-        notify.warning('La subida de imágenes aún no está configurada en el servidor (Cloudinary).');
+        notify.warning('La subida de imágenes no está disponible: falta configurar Firebase Storage (FIREBASE_STORAGE_BUCKET).');
         return;
       }
       fileInput.click();
@@ -183,7 +190,7 @@ export function openEventEditor(event, onSaved) {
     class: 'field__hint',
     text: canUpload
       ? 'Sube una imagen JPG, PNG o WebP (máx. 15 MB) o arrástrala aquí. Se ajusta automáticamente a 1600 × 900 px (16:9): las fotos se recortan al centro y los afiches se muestran completos.'
-      : 'Subida de imágenes no configurada: define CLOUDINARY_CLOUD_NAME y CLOUDINARY_UPLOAD_PRESET en Render (ver docs/DEPLOYMENT.md).',
+      : 'Subida de imágenes no disponible: revisa FIREBASE_STORAGE_BUCKET en Render (ver docs/DEPLOYMENT.md).',
   });
 
   const imagePicker = h('div', { class: 'image-picker' }, frame, creditLine, imageActions, uploadHint, urlField);
@@ -205,7 +212,15 @@ export function openEventEditor(event, onSaved) {
       previewUrl = URL.createObjectURL(prepared.blob);
       renderImage({ loading: 'Subiendo imagen…', previewUrl });
 
-      const url = await uploadEventImage(prepared.blob, { signal: controller.signal });
+      const url = await uploadEventImage(prepared.blob, {
+        signal: controller.signal,
+        folder: savedEventId || 'nuevos',
+        onProgress: (percent) => {
+          if (uploadController === controller) renderImage({ loading: `Subiendo imagen… ${percent} %`, previewUrl });
+        },
+      });
+      sessionUploads.push(url);
+      if (controller.signal.aborted) return;
       imageUrl = url;
       imageCredit = null;
       uploadedNote = `Imagen subida · ${prepared.width} × ${prepared.height} px · ${prepared.mode === 'crop' ? 'recortada al centro' : 'completa, con fondo difuminado'}`;
@@ -366,8 +381,24 @@ export function openEventEditor(event, onSaved) {
     onClose: () => {
       if (suggestController) suggestController.abort();
       if (uploadController) uploadController.abort();
+      cleanUpImages();
     },
   });
+
+  /**
+   * Delete uploaded images that no event uses any more: uploads from this
+   * session that were not kept, and the event's previous uploaded image if it
+   * was replaced and no copy of the event still shows it. Runs in the
+   * background; failures only leave an unused file behind.
+   */
+  function cleanUpImages() {
+    const unused = sessionUploads.filter((url) => url !== persistedImageUrl);
+    if (originalImageUrl && originalImageUrl !== persistedImageUrl
+      && !isImageInUse(originalImageUrl, eventsStore.state.items, savedEventId)) {
+      unused.push(originalImageUrl);
+    }
+    unused.forEach((url) => { deleteUploadedEventImage(url); });
+  }
 
   async function handleSave() {
     if (saveBtn.dataset.busy === '1') return;
@@ -425,6 +456,7 @@ export function openEventEditor(event, onSaved) {
 
     try {
       savedEventId = await saveEvent(savedEventId, values);
+      persistedImageUrl = values.imageUrl;
     } catch (error) {
       console.error('[events] no se pudo guardar el evento', error);
       notify.error(describeError(error, 'No se pudo guardar el evento. Inténtalo de nuevo.'));

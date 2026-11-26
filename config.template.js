@@ -21,12 +21,5 @@ window.umaConfig = {
   // Unsplash public Access Key. The Secret Key must stay off the client.
   // Without it the event image suggestion falls back to a limited, keyless
   // endpoint and administrators can still paste an image URL manually.
-  unsplashAccessKey: "${UNSPLASH_ACCESS_KEY}",
-
-  // Event image upload (Cloudinary, unsigned upload preset). Both values are
-  // public names, not secrets. Leave them empty to hide the upload option.
-  imageUpload: {
-    cloudName:    "${CLOUDINARY_CLOUD_NAME}",
-    uploadPreset: "${CLOUDINARY_UPLOAD_PRESET}"
-  }
+  unsplashAccessKey: "${UNSPLASH_ACCESS_KEY}"
 };
