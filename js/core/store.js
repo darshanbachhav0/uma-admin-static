@@ -77,17 +77,134 @@ function createCollection(name, { query, normalize }) {
   };
 }
 
-/** Events, sorted by start date (soonest first, undated last). */
-export const eventsStore = createCollection('events', {
+/** Raw `/events` snapshot; `eventsStore` below adds registration details. */
+const rawEventsStore = createCollection('events', {
   query: (database) => database.ref(DB_PATHS.events),
-  normalize: (data) => Object.entries(data)
-    .filter(([, value]) => value && typeof value === 'object')
-    .map(([id, value]) => normalizeEvent(id, value))
-    .sort(byStartAt),
+  normalize: (data) => data,
 });
 
-function normalizeEvent(id, value) {
-  const registrations = value.registrations && typeof value.registrations === 'object' ? value.registrations : {};
+/**
+ * Events, sorted by start date (soonest first, undated last).
+ *
+ * The student app writes each registration twice:
+ *   /events/{eventId}/registrations/{code}      { uid, code, registeredAt }
+ *   /eventRegistrations/{eventId}/{code}        { …, name, dni, email, phone,
+ *                                                 facultyName, specialtyName,
+ *                                                 semester, mode }
+ * Administrators may read `/eventRegistrations/{eventId}` one event at a time
+ * (not the whole path), so this store keeps one live listener per event and
+ * merges both sources by student code. A registration found in either place
+ * is listed; the detailed copy fills in the name and the other fields.
+ */
+export const eventsStore = createEventsStore();
+
+function createEventsStore() {
+  const listeners = new Set();
+  let state = { status: 'idle', items: [], error: null, updatedAt: 0 };
+  let rawEvents = {};
+  const details = new Map();      // eventId -> { code: registration }
+  const detailRefs = new Map();   // eventId -> { ref, handler }
+  let stopRaw = null;
+
+  function emit(patch) {
+    state = { ...state, ...patch };
+    listeners.forEach((listener) => listener(state));
+  }
+
+  function rebuild(patch = {}) {
+    const items = Object.entries(rawEvents || {})
+      .filter(([, value]) => value && typeof value === 'object')
+      .map(([id, value]) => normalizeEvent(id, value, details.get(id)))
+      .sort(byStartAt);
+    emit({ ...patch, items });
+  }
+
+  function syncDetailListeners() {
+    const ids = new Set(Object.keys(rawEvents || {}));
+    for (const [id, entry] of detailRefs) {
+      if (ids.has(id)) continue;
+      entry.ref.off('value', entry.handler);
+      detailRefs.delete(id);
+      details.delete(id);
+    }
+    for (const id of ids) {
+      if (detailRefs.has(id)) continue;
+      const ref = db.ref(DB_PATHS.eventRegistrations).child(id);
+      const handler = ref.on('value',
+        (snapshot) => {
+          const value = snapshot.val();
+          details.set(id, value && typeof value === 'object' ? value : {});
+          rebuild();
+        },
+        (error) => {
+          // Not fatal: the event still lists the registrations in /events.
+          console.warn(`[store:events] sin acceso a los datos de inscripción de ${id}`, error);
+          details.delete(id);
+        });
+      detailRefs.set(id, { ref, handler });
+    }
+  }
+
+  function detachDetails() {
+    for (const { ref, handler } of detailRefs.values()) ref.off('value', handler);
+    detailRefs.clear();
+    details.clear();
+  }
+
+  function onRaw(rawState) {
+    const { items, ...rest } = rawState;
+    if (items && !Array.isArray(items)) rawEvents = items;
+    if (rawState.status === 'ready') syncDetailListeners();
+    rebuild(rest);
+  }
+
+  return {
+    name: 'events',
+    get state() { return state; },
+
+    subscribe(listener) {
+      listeners.add(listener);
+      if (!stopRaw) stopRaw = rawEventsStore.subscribe(onRaw);
+      else listener(state);
+      return () => {
+        listeners.delete(listener);
+        if (!listeners.size && stopRaw) {
+          stopRaw();
+          stopRaw = null;
+          detachDetails();
+        }
+      };
+    },
+
+    refresh() {
+      return rawEventsStore.refresh();
+    },
+  };
+}
+
+/** Merge the short and the detailed copy of each registration by code. */
+function mergeRegistrations(short, detailed) {
+  const merged = {};
+  const add = (source) => {
+    for (const [code, value] of Object.entries(source || {})) {
+      if (!value || typeof value !== 'object') continue;
+      const current = merged[code] || {};
+      const next = { ...current };
+      for (const [field, fieldValue] of Object.entries(value)) {
+        // Never replace a filled-in value with an empty one.
+        if (fieldValue !== '' && fieldValue !== null && fieldValue !== undefined) next[field] = fieldValue;
+      }
+      merged[code] = next;
+    }
+  };
+  add(short);
+  add(detailed);
+  return merged;
+}
+
+function normalizeEvent(id, value, detailedRegistrations) {
+  const short = value.registrations && typeof value.registrations === 'object' ? value.registrations : {};
+  const registrations = mergeRegistrations(short, detailedRegistrations);
   return {
     id,
     title: typeof value.title === 'string' ? value.title : '',
