@@ -104,6 +104,9 @@ function createEventsStore() {
   let rawEvents = {};
   const details = new Map();      // eventId -> { code: registration }
   const detailRefs = new Map();   // eventId -> { ref, handler }
+  // Student profiles (/users/{uid}: dni, email) used to fill in registrations
+  // that have no detailed copy. Read once per student, not live.
+  const profiles = new Map();     // uid -> { dni, email } | null while loading
   let stopRaw = null;
 
   function emit(patch) {
@@ -114,9 +117,36 @@ function createEventsStore() {
   function rebuild(patch = {}) {
     const items = Object.entries(rawEvents || {})
       .filter(([, value]) => value && typeof value === 'object')
-      .map(([id, value]) => normalizeEvent(id, value, details.get(id)))
+      .map(([id, value]) => normalizeEvent(id, value, details.get(id), profiles))
       .sort(byStartAt);
     emit({ ...patch, items });
+    loadMissingProfiles(items);
+  }
+
+  /** Fetch the profile of students whose registration lacks DNI or email. */
+  function loadMissingProfiles(items) {
+    const wanted = new Set();
+    for (const event of items) {
+      for (const registration of Object.values(event.registrations)) {
+        const uid = typeof registration.uid === 'string' ? registration.uid : '';
+        if (!uid || profiles.has(uid) || !/^[A-Za-z0-9_-]{1,128}$/.test(uid)) continue;
+        if (!registration.dni || !registration.email) wanted.add(uid);
+      }
+    }
+    if (!wanted.size) return;
+    for (const uid of wanted) profiles.set(uid, null);
+    Promise.all([...wanted].map(async (uid) => {
+      try {
+        const value = (await db.ref(DB_PATHS.users).child(uid).get()).val() || {};
+        profiles.set(uid, {
+          dni: typeof value.dni === 'string' ? value.dni : '',
+          email: typeof value.email === 'string' ? value.email : '',
+        });
+      } catch (error) {
+        console.warn('[store:events] no se pudo leer el perfil del estudiante', error);
+        profiles.set(uid, { dni: '', email: '' });
+      }
+    })).then(() => { if (stopRaw) rebuild(); });
   }
 
   function syncDetailListeners() {
@@ -149,6 +179,7 @@ function createEventsStore() {
     for (const { ref, handler } of detailRefs.values()) ref.off('value', handler);
     detailRefs.clear();
     details.clear();
+    profiles.clear();
   }
 
   function onRaw(rawState) {
@@ -182,6 +213,23 @@ function createEventsStore() {
   };
 }
 
+/**
+ * Fill a missing DNI or email from the student's profile. The name, faculty
+ * and program are not stored in the profile, so they stay empty until the
+ * app saves the detailed copy of the registration.
+ */
+function fillFromProfiles(registrations, profiles) {
+  if (!profiles || !profiles.size) return registrations;
+  const filled = {};
+  for (const [code, registration] of Object.entries(registrations)) {
+    const profile = profiles.get(registration.uid);
+    filled[code] = profile
+      ? { ...registration, dni: registration.dni || profile.dni, email: registration.email || profile.email }
+      : registration;
+  }
+  return filled;
+}
+
 /** Merge the short and the detailed copy of each registration by code. */
 function mergeRegistrations(short, detailed) {
   const merged = {};
@@ -202,9 +250,9 @@ function mergeRegistrations(short, detailed) {
   return merged;
 }
 
-function normalizeEvent(id, value, detailedRegistrations) {
+function normalizeEvent(id, value, detailedRegistrations, profiles) {
   const short = value.registrations && typeof value.registrations === 'object' ? value.registrations : {};
-  const registrations = mergeRegistrations(short, detailedRegistrations);
+  const registrations = fillFromProfiles(mergeRegistrations(short, detailedRegistrations), profiles);
   return {
     id,
     title: typeof value.title === 'string' ? value.title : '',
