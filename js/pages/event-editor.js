@@ -13,6 +13,9 @@ import { notify } from '../ui/toast.js';
 import { EVENT_STATUSES, saveEvent, validateEvent } from '../services/events.js';
 import { saveEventDocuments } from '../services/documents.js';
 import { suggestImage, creditText, hasUnsplashKey, UnsplashError } from '../services/unsplash.js';
+import {
+  ACCEPT_ATTRIBUTE, ImageUploadError, isImageUploadConfigured, prepareEventImage, uploadEventImage,
+} from '../services/image-upload.js';
 import { describeError, safeUrl } from '../utils/validate.js';
 import { fromDateTimeInputs, toDateInputValue, toTimeInputValue } from '../utils/format.js';
 import { createDocumentsField } from './event-documents-field.js';
@@ -106,8 +109,10 @@ export function openEventEditor(event, onSaved) {
     if (!value) return;
     const safe = safeUrl(value);
     if (!safe) { urlField.setError('El enlace debe empezar con http:// o https://'); return; }
+    if (uploadController) uploadController.abort();
     imageUrl = safe;
     imageCredit = null;
+    uploadedNote = '';
     urlInput.value = '';
     renderImage();
   });
@@ -117,18 +122,114 @@ export function openEventEditor(event, onSaved) {
     icon: 'x',
     variant: 'ghost',
     size: 'sm',
-    onClick: () => { imageUrl = ''; imageCredit = null; renderImage(); },
+    onClick: () => {
+      if (uploadController) uploadController.abort();
+      imageUrl = '';
+      imageCredit = null;
+      uploadedNote = '';
+      renderImage();
+    },
   });
 
-  const imageActions = h('div', { class: 'image-picker__actions' }, suggestBtn, removeBtn);
+  // ---- Upload from the computer ----------------------------------------
+  let uploadController = null;
+  let uploadedNote = '';
+  const canUpload = isImageUploadConfigured();
+  const fileInput = h('input', {
+    type: 'file',
+    accept: ACCEPT_ATTRIBUTE,
+    class: 'visually-hidden',
+    tabindex: '-1',
+    'aria-hidden': 'true',
+  });
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files && fileInput.files[0];
+    fileInput.value = '';
+    if (file) runUpload(file);
+  });
 
-  const imagePicker = h('div', { class: 'image-picker' }, frame, creditLine, imageActions, urlField);
+  const uploadBtn = button({
+    label: 'Subir imagen',
+    icon: 'upload',
+    variant: 'secondary',
+    size: 'sm',
+    onClick: () => {
+      if (!canUpload) {
+        notify.warning('La subida de imágenes aún no está configurada en el servidor (Cloudinary).');
+        return;
+      }
+      fileInput.click();
+    },
+  });
 
-  function renderImage({ loading = false, error = '' } = {}) {
+  // Drag and drop an image onto the preview.
+  frame.addEventListener('dragover', (dragEvent) => {
+    if (!canUpload) return;
+    dragEvent.preventDefault();
+    frame.classList.add('is-dragover');
+  });
+  frame.addEventListener('dragleave', () => frame.classList.remove('is-dragover'));
+  frame.addEventListener('drop', (dropEvent) => {
+    frame.classList.remove('is-dragover');
+    if (!canUpload) return;
+    dropEvent.preventDefault();
+    const file = dropEvent.dataTransfer && dropEvent.dataTransfer.files[0];
+    if (file) runUpload(file);
+  });
+
+  const imageActions = h('div', { class: 'image-picker__actions' }, uploadBtn, suggestBtn, removeBtn, fileInput);
+
+  const uploadHint = h('p', {
+    class: 'field__hint',
+    text: canUpload
+      ? 'Sube una imagen JPG, PNG o WebP (máx. 15 MB) o arrástrala aquí. Se ajusta automáticamente a 1600 × 900 px (16:9): las fotos se recortan al centro y los afiches se muestran completos.'
+      : 'Subida de imágenes no configurada: define CLOUDINARY_CLOUD_NAME y CLOUDINARY_UPLOAD_PRESET en Render (ver docs/DEPLOYMENT.md).',
+  });
+
+  const imagePicker = h('div', { class: 'image-picker' }, frame, creditLine, imageActions, uploadHint, urlField);
+
+  async function runUpload(file) {
+    if (uploadController) uploadController.abort();
+    if (suggestController) suggestController.abort();
+    const controller = new AbortController();
+    uploadController = controller;
+    const previous = { imageUrl, imageCredit, uploadedNote };
+    let previewUrl = '';
+
+    try {
+      renderImage({ loading: 'Ajustando la imagen…' });
+      const prepared = await prepareEventImage(file);
+      if (controller.signal.aborted) return;
+
+      // Show the adjusted picture straight away while it uploads.
+      previewUrl = URL.createObjectURL(prepared.blob);
+      renderImage({ loading: 'Subiendo imagen…', previewUrl });
+
+      const url = await uploadEventImage(prepared.blob, { signal: controller.signal });
+      imageUrl = url;
+      imageCredit = null;
+      uploadedNote = `Imagen subida · ${prepared.width} × ${prepared.height} px · ${prepared.mode === 'crop' ? 'recortada al centro' : 'completa, con fondo difuminado'}`;
+      renderImage();
+      notify.success('Imagen subida y ajustada.');
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      console.error('[events] subida de imagen fallida', error);
+      ({ imageUrl, imageCredit, uploadedNote } = previous);
+      const message = error instanceof ImageUploadError ? error.message : 'No se pudo subir la imagen. Inténtalo de nuevo.';
+      renderImage({ error: message });
+      notify.error(message);
+    } finally {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (uploadController === controller) uploadController = null;
+    }
+  }
+
+  function renderImage({ loading = false, error = '', previewUrl = '' } = {}) {
     frame.textContent = '';
+    const shown = previewUrl || imageUrl;
 
-    if (imageUrl) {
-      previewImg.src = imageUrl;
+    if (shown) {
+      previewImg.src = shown;
       previewImg.onerror = () => {
         frame.textContent = '';
         frame.appendChild(h('div', { class: 'stack-2', style: { 'align-items': 'center' } },
@@ -139,13 +240,15 @@ export function openEventEditor(event, onSaved) {
     } else if (!loading && !error) {
       frame.appendChild(h('div', { class: 'stack-2', style: { 'align-items': 'center' } },
         icon('image', { size: 22 }),
-        h('p', { class: 'text-sm', text: 'Sin imagen. Sugiere una desde Unsplash o pega una URL.' })));
+        h('p', { class: 'text-sm', text: canUpload
+          ? 'Sin imagen. Sube una, arrástrala aquí, sugiere una desde Unsplash o pega una URL.'
+          : 'Sin imagen. Sugiere una desde Unsplash o pega una URL.' })));
     }
 
     if (loading) {
       frame.appendChild(h('div', { class: 'image-picker__overlay', role: 'status' },
         h('span', { class: 'spinner' }),
-        h('span', { text: 'Buscando imagen en Unsplash…' })));
+        h('span', { text: typeof loading === 'string' ? loading : 'Buscando imagen en Unsplash…' })));
     } else if (error) {
       frame.appendChild(h('div', { class: 'image-picker__overlay', role: 'alert' },
         icon('alert-triangle', { size: 20 }),
@@ -154,6 +257,7 @@ export function openEventEditor(event, onSaved) {
 
     const credit = creditText(imageCredit);
     creditLine.textContent = '';
+    if (uploadedNote && imageUrl && !imageCredit) creditLine.appendChild(h('span', { text: uploadedNote }));
     if (credit && imageUrl) {
       const link = imageCredit && safeUrl(imageCredit.photoLink);
       creditLine.appendChild(h('span', { text: credit }));
@@ -164,7 +268,8 @@ export function openEventEditor(event, onSaved) {
     }
 
     removeBtn.classList.toggle('hidden', !imageUrl);
-    suggestBtn.querySelector('.btn__label').textContent = imageUrl ? 'Reemplazar imagen' : 'Sugerir desde Unsplash';
+    uploadBtn.querySelector('.btn__label').textContent = imageUrl ? 'Subir otra imagen' : 'Subir imagen';
+    suggestBtn.querySelector('.btn__label').textContent = imageUrl ? 'Otra sugerencia de Unsplash' : 'Sugerir desde Unsplash';
   }
 
   async function runSuggestion() {
@@ -175,6 +280,7 @@ export function openEventEditor(event, onSaved) {
       return;
     }
     if (suggestController) suggestController.abort();
+    if (uploadController) uploadController.abort();
     suggestController = new AbortController();
 
     renderImage({ loading: true });
@@ -182,6 +288,7 @@ export function openEventEditor(event, onSaved) {
       const result = await suggestImage(query, suggestController.signal);
       imageUrl = result.imageUrl;
       imageCredit = result.credit;
+      uploadedNote = '';
       renderImage();
       notify.success('Imagen sugerida desde Unsplash.');
     } catch (error) {
@@ -256,7 +363,10 @@ export function openEventEditor(event, onSaved) {
     size: 'lg',
     body: form,
     footer: [cancelBtn, saveBtn],
-    onClose: () => { if (suggestController) suggestController.abort(); },
+    onClose: () => {
+      if (suggestController) suggestController.abort();
+      if (uploadController) uploadController.abort();
+    },
   });
 
   async function handleSave() {
@@ -278,6 +388,11 @@ export function openEventEditor(event, onSaved) {
       imageUrl,
       imageCredit,
     });
+
+    if (uploadController) {
+      notify.warning('Espera a que termine de subirse la imagen.');
+      return;
+    }
 
     if (documentsField.isLoading()) {
       notify.warning('Espera a que terminen de cargar los documentos.');

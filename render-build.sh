@@ -39,6 +39,12 @@ if [ -z "${UNSPLASH_ACCESS_KEY:-}" ]; then
   export UNSPLASH_ACCESS_KEY=""
 fi
 
+if [ -z "${CLOUDINARY_CLOUD_NAME:-}" ] || [ -z "${CLOUDINARY_UPLOAD_PRESET:-}" ]; then
+  echo "CLOUDINARY_CLOUD_NAME / CLOUDINARY_UPLOAD_PRESET not set — event image upload will be disabled."
+fi
+export CLOUDINARY_CLOUD_NAME="${CLOUDINARY_CLOUD_NAME:-}"
+export CLOUDINARY_UPLOAD_PRESET="${CLOUDINARY_UPLOAD_PRESET:-}"
+
 if command -v envsubst >/dev/null 2>&1 && [ -f "config.template.js" ]; then
   echo "Generating config.js with envsubst"
   envsubst < config.template.js > config.js
@@ -57,7 +63,11 @@ window.umaConfig = {
     appId:             "${FIREBASE_APP_ID}",
     measurementId:     "${FIREBASE_MEASUREMENT_ID}"
   },
-  unsplashAccessKey: "${UNSPLASH_ACCESS_KEY}"
+  unsplashAccessKey: "${UNSPLASH_ACCESS_KEY}",
+  imageUpload: {
+    cloudName:    "${CLOUDINARY_CLOUD_NAME}",
+    uploadPreset: "${CLOUDINARY_UPLOAD_PRESET}"
+  }
 };
 EOF
 fi

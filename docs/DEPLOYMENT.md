@@ -22,6 +22,8 @@ sitio estático y terminan en `config.js`, que es público por diseño.
 | `FIREBASE_APP_ID` | sí | App ID |
 | `FIREBASE_MEASUREMENT_ID` | sí | Measurement ID |
 | `UNSPLASH_ACCESS_KEY` | no | Access Key **pública** de Unsplash. Sin ella, la sugerencia de imágenes funciona en modo limitado y el administrador puede pegar una URL manualmente. |
+| `CLOUDINARY_CLOUD_NAME` | no | Nombre de la cuenta de Cloudinary (*cloud name*). Activa el botón **Subir imagen** del editor de eventos. |
+| `CLOUDINARY_UPLOAD_PRESET` | no | Nombre del *upload preset* **Unsigned** de Cloudinary. Ver «Subida de imágenes» abajo. |
 
 Nunca pongas aquí la Secret Key de Unsplash ni una clave de cuenta de servicio:
 todo lo que entra en `config.js` es visible para cualquiera que abra el sitio.
@@ -74,6 +76,42 @@ Firebase Console → Realtime Database → Reglas → Simulador, o el emulador:
 ```bash
 firebase emulators:start --only database,auth
 ```
+
+## Subida de imágenes de eventos (Cloudinary)
+
+El editor de eventos puede subir una imagen desde la computadora. Antes de
+subirla, el navegador la ajusta a **1600 × 900 px (16:9) en JPEG**: las fotos
+con forma cercana a 16:9 se recortan al centro y los afiches o imágenes
+verticales se muestran completos sobre un fondo difuminado, para no cortar el
+texto. La imagen se guarda en Cloudinary y su enlace `https://` va en el campo
+`imageUrl` del evento, así que **la app de estudiantes no necesita cambios**.
+
+Se usa Cloudinary porque Firebase Storage exige el plan de pago Blaze. El plan
+gratuito de Cloudinary es suficiente para las imágenes de eventos.
+
+Configuración (una sola vez):
+
+1. Crea una cuenta gratuita en <https://cloudinary.com> (puede ser con el
+   correo del área). En el panel (*Dashboard*) copia el **Cloud name**.
+2. Ve a **Settings → Upload → Upload presets → Add upload preset**:
+   - *Signing mode*: **Unsigned**.
+   - *Asset folder*: `uma-eventos`.
+   - *Allowed formats*: `jpg` (el editor siempre sube JPEG).
+   - En *Upload Manipulations → Incoming transformation* puedes poner un
+     límite de tamaño, por ejemplo `c_limit,w_1600,h_900`.
+   - Guarda y copia el **nombre del preset**.
+3. En Render → tu sitio → **Environment**, agrega
+   `CLOUDINARY_CLOUD_NAME` y `CLOUDINARY_UPLOAD_PRESET` y vuelve a desplegar
+   (*Manual Deploy → Deploy latest commit*).
+
+Ambos valores son públicos (no son claves secretas). Nunca pongas el
+*API Secret* de Cloudinary en Render ni en el código. Como un preset Unsigned
+permite subir imágenes a quien conozca su nombre, limita los formatos y la
+carpeta como se indica arriba y revisa de vez en cuando la carpeta
+`uma-eventos` en Cloudinary.
+
+Sin estas variables, el botón **Subir imagen** muestra un aviso y todo lo
+demás (Unsplash, pegar una URL) sigue funcionando igual.
 
 ## 4. Administración de cuentas
 
