@@ -15,9 +15,10 @@ import { eventsStore } from '../core/store.js';
 import { saveEventDocuments } from '../services/documents.js';
 import { suggestImage, creditText, hasUnsplashKey, UnsplashError } from '../services/unsplash.js';
 import {
-  ACCEPT_ATTRIBUTE, ImageUploadError, deleteUploadedEventImage, isImageUploadConfigured, prepareEventImage,
-  uploadEventImage,
+  ACCEPT_ATTRIBUTE, ImageUploadError, deleteUploadedEventImage, isImageUploadConfigured, loadImageFile,
+  renderEventImage, uploadEventImage,
 } from '../services/image-upload.js';
+import { openImageCropper } from './image-cropper.js';
 import { describeError, safeUrl } from '../utils/validate.js';
 import { fromDateTimeInputs, toDateInputValue, toTimeInputValue } from '../utils/format.js';
 import { createDocumentsField } from './event-documents-field.js';
@@ -184,12 +185,24 @@ export function openEventEditor(event, onSaved) {
     if (file) runUpload(file);
   });
 
-  const imageActions = h('div', { class: 'image-picker__actions' }, uploadBtn, suggestBtn, removeBtn, fileInput);
+  // Re-open the framing dialog with the original picture of the last upload,
+  // so the framing can be changed without choosing the file again.
+  let lastOriginalFile = null;
+  let lastPlacement = null;
+  const reframeBtn = button({
+    label: 'Ajustar encuadre',
+    icon: 'image',
+    variant: 'secondary',
+    size: 'sm',
+    onClick: () => { if (lastOriginalFile) runUpload(lastOriginalFile); },
+  });
+
+  const imageActions = h('div', { class: 'image-picker__actions' }, uploadBtn, reframeBtn, suggestBtn, removeBtn, fileInput);
 
   const uploadHint = h('p', {
     class: 'field__hint',
     text: canUpload
-      ? 'Sube una imagen JPG, PNG o WebP (máx. 15 MB) o arrástrala aquí. Se ajusta automáticamente a 1600 × 900 px (16:9): las fotos se recortan al centro y los afiches se muestran completos.'
+      ? 'Sube una imagen JPG, PNG o WebP (máx. 15 MB) o arrástrala aquí. Antes de subirla eliges qué parte se ve en la tarjeta (16:9) y se guarda en 1600 × 900 px.'
       : 'Subida de imágenes no disponible: revisa FIREBASE_STORAGE_BUCKET en Render (ver docs/DEPLOYMENT.md).',
   });
 
@@ -202,10 +215,26 @@ export function openEventEditor(event, onSaved) {
     uploadController = controller;
     const previous = { imageUrl, imageCredit, uploadedNote };
     let previewUrl = '';
+    let image = null;
 
     try {
+      renderImage({ loading: 'Abriendo la imagen…' });
+      image = await loadImageFile(file);
+      if (controller.signal.aborted) return;
+
+      // Let the administrator choose which part of the picture is shown.
+      const placement = await openImageCropper(image, file, file === lastOriginalFile ? lastPlacement : null);
+      if (!placement || controller.signal.aborted) {
+        renderImage();
+        return;
+      }
+      lastOriginalFile = file;
+      lastPlacement = placement;
+
       renderImage({ loading: 'Ajustando la imagen…' });
-      const prepared = await prepareEventImage(file);
+      const prepared = await renderEventImage(image.source, placement);
+      image.close();
+      image = null;
       if (controller.signal.aborted) return;
 
       // Show the adjusted picture straight away while it uploads.
@@ -223,7 +252,7 @@ export function openEventEditor(event, onSaved) {
       if (controller.signal.aborted) return;
       imageUrl = url;
       imageCredit = null;
-      uploadedNote = `Imagen subida · ${prepared.width} × ${prepared.height} px · ${prepared.mode === 'crop' ? 'recortada al centro' : 'completa, con fondo difuminado'}`;
+      uploadedNote = `Imagen subida · ${prepared.width} × ${prepared.height} px · ${prepared.mode === 'crop' ? 'encuadre elegido' : 'completa, con fondo difuminado'}`;
       renderImage();
       notify.success('Imagen subida y ajustada.');
     } catch (error) {
@@ -234,6 +263,7 @@ export function openEventEditor(event, onSaved) {
       renderImage({ error: message });
       notify.error(message);
     } finally {
+      if (image) image.close();
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       if (uploadController === controller) uploadController = null;
     }
@@ -283,6 +313,7 @@ export function openEventEditor(event, onSaved) {
     }
 
     removeBtn.classList.toggle('hidden', !imageUrl);
+    reframeBtn.classList.toggle('hidden', !(lastOriginalFile && imageUrl && uploadedNote));
     uploadBtn.querySelector('.btn__label').textContent = imageUrl ? 'Subir otra imagen' : 'Subir imagen';
     suggestBtn.querySelector('.btn__label').textContent = imageUrl ? 'Otra sugerencia de Unsplash' : 'Sugerir desde Unsplash';
   }

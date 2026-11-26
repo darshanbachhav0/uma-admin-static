@@ -1,11 +1,11 @@
 /**
  * Event cover image upload.
  *
- * 1. `prepareEventImage(file)` resizes the picture in the browser to a 16:9
- *    JPEG (1600 × 900 at most), the shape used by the event cards:
- *      - pictures that are already close to 16:9 are centre-cropped;
- *      - posters, flyers and other tall or very wide pictures are shown whole,
- *        centred on a blurred copy of themselves, so no text is cut off.
+ * 1. The administrator frames the picture in a 16:9 cropper
+ *    (js/pages/image-cropper.js); `renderEventImage()` then draws it into a
+ *    1600 × 900 JPEG, the shape of the event cards. Parts of the frame the
+ *    picture does not cover get a blurred copy of it. `defaultPlacement()` is
+ *    the starting framing: centre-cropped when close to 16:9, otherwise whole.
  * 2. `uploadEventImage(blob)` stores the result in Firebase Storage under
  *    `eventImages/` and returns its https download address, which goes in the
  *    event's existing `imageUrl` field. The student app needs no change.
@@ -155,38 +155,92 @@ function toBlob(canvas, quality) {
 }
 
 /**
- * Resize and reshape a picture for an event cover.
+ * Check and decode a picture chosen by the administrator.
+ * The caller must call `close()` when done, to free the decoded image.
+ * @returns {Promise<{source:CanvasImageSource, width:number, height:number, close:()=>void}>}
+ */
+export async function loadImageFile(file) {
+  checkFile(file);
+  const source = await decode(file);
+  const { width, height } = sizeOf(source);
+  if (!width || !height) throw new ImageUploadError('La imagen no tiene dimensiones válidas.');
+  return {
+    source,
+    width,
+    height,
+    close: () => { if (typeof source.close === 'function') source.close(); },
+  };
+}
+
+/**
+ * Where the picture goes by default inside the 1600 × 900 frame
+ * (same rule as before: crop when close to 16:9, otherwise show it whole).
+ * @returns {{x:number, y:number, width:number, height:number}} in output pixels.
+ */
+export function defaultPlacement(width, height) {
+  const layout = planLayout(width, height);
+  const factor = TARGET_WIDTH / layout.width;
+  return {
+    x: layout.draw.x * factor,
+    y: layout.draw.y * factor,
+    width: layout.draw.width * factor,
+    height: layout.draw.height * factor,
+  };
+}
+
+/** True when the picture covers the whole frame (no background visible). */
+export function coversFrame(placement) {
+  const eps = 0.5;
+  return placement.x <= eps && placement.y <= eps
+    && placement.x + placement.width >= TARGET_WIDTH - eps
+    && placement.y + placement.height >= TARGET_HEIGHT - eps;
+}
+
+/**
+ * Draw the picture into a 1600 × 900 JPEG exactly where the administrator
+ * placed it. Any part of the frame the picture does not cover is filled with
+ * a blurred, darkened copy of it.
+ * @param {CanvasImageSource} source
+ * @param {{x:number, y:number, width:number, height:number}} placement Output pixels.
+ * @returns {Promise<{blob:Blob, width:number, height:number, mode:'crop'|'fit'}>}
+ */
+export async function renderEventImage(source, placement) {
+  const width = TARGET_WIDTH;
+  const height = TARGET_HEIGHT;
+  const canvas = canvasOf(width, height);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new ImageUploadError('Este navegador no puede procesar imágenes.');
+
+  // White first, so transparent PNGs do not turn black in the JPEG.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+  const covers = coversFrame(placement);
+  if (!covers) drawBlurredBackground(ctx, source, width, height, { width, height });
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(source, placement.x, placement.y, placement.width, placement.height);
+
+  let blob = null;
+  for (const quality of [0.86, 0.78, 0.7, 0.6]) {
+    blob = await toBlob(canvas, quality);
+    if (blob.size <= MAX_OUTPUT_BYTES) break;
+  }
+  return { blob, width, height, mode: covers ? 'crop' : 'fit' };
+}
+
+/**
+ * Resize and reshape a picture with the default placement (no cropper).
  * @returns {Promise<{blob:Blob, width:number, height:number, mode:'crop'|'fit',
  *                    original:{width:number,height:number}}>}
  */
 export async function prepareEventImage(file) {
-  checkFile(file);
-  const source = await decode(file);
+  const image = await loadImageFile(file);
   try {
-    const original = sizeOf(source);
-    const layout = planLayout(original.width, original.height);
-    const canvas = canvasOf(layout.width, layout.height);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new ImageUploadError('Este navegador no puede procesar imágenes.');
-
-    // White first, so transparent PNGs do not turn black in the JPEG.
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, layout.width, layout.height);
-    if (layout.mode === 'fit') drawBlurredBackground(ctx, source, layout.width, layout.height, layout);
-
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    const { x, y, width, height } = layout.draw;
-    ctx.drawImage(source, x, y, width, height);
-
-    let blob = null;
-    for (const quality of [0.86, 0.78, 0.7, 0.6]) {
-      blob = await toBlob(canvas, quality);
-      if (blob.size <= MAX_OUTPUT_BYTES) break;
-    }
-    return { blob, width: layout.width, height: layout.height, mode: layout.mode, original };
+    const result = await renderEventImage(image.source, defaultPlacement(image.width, image.height));
+    return { ...result, original: { width: image.width, height: image.height } };
   } finally {
-    if (typeof source.close === 'function') source.close();
+    image.close();
   }
 }
 
