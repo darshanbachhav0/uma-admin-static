@@ -1,0 +1,37 @@
+// Firebase Storage rules for event cover images uploaded from the console.
+//
+// Do NOT deploy this file on its own: it would replace any Storage rules the
+// student app already uses. Copy the `match /eventImages/...` block into the
+// existing rules in Firebase Console → Storage → Rules, inside
+// `match /b/{bucket}/o { ... }`, and click "Publicar". See docs/DEPLOYMENT.md.
+//
+// Storage rules cannot read Realtime Database, so administrators are
+// recognised by their sign-in email (and by an optional `admin` custom
+// claim). Replace ADMIN_EMAIL@uma.edu.pe with the console account(s).
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    match /eventImages/{folder}/{fileName} {
+      // Anyone can view event images (the app shows them on event cards).
+      allow read: if true;
+
+      // Only console administrators can upload, replace or delete them:
+      // JPEG only (the console always converts), at most 2 MB.
+      allow create, update: if isEventAdmin()
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType == 'image/jpeg'
+        && fileName.matches('[0-9]+-[0-9a-f]{12}[.]jpg');
+      allow delete: if isEventAdmin();
+    }
+
+    function isEventAdmin() {
+      return request.auth != null
+        && (request.auth.token.admin == true
+            || request.auth.token.email in [
+              'ADMIN_EMAIL@uma.edu.pe'
+            ]);
+    }
+  }
+}

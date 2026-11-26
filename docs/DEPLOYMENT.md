@@ -17,7 +17,7 @@ sitio estático y terminan en `config.js`, que es público por diseño.
 | `FIREBASE_AUTH_DOMAIN` | sí | `<proyecto>.firebaseapp.com` |
 | `FIREBASE_DATABASE_URL` | sí | URL de Realtime Database |
 | `FIREBASE_PROJECT_ID` | sí | ID del proyecto |
-| `FIREBASE_STORAGE_BUCKET` | sí | Bucket (no se usa, pero el SDK lo espera) |
+| `FIREBASE_STORAGE_BUCKET` | sí | Bucket de Firebase Storage (por ejemplo `uma-erp.firebasestorage.app`). Se usa para las imágenes que se suben desde el editor de eventos. |
 | `FIREBASE_MESSAGING_SENDER_ID` | sí | Sender ID |
 | `FIREBASE_APP_ID` | sí | App ID |
 | `FIREBASE_MEASUREMENT_ID` | sí | Measurement ID |
@@ -74,6 +74,37 @@ Firebase Console → Realtime Database → Reglas → Simulador, o el emulador:
 ```bash
 firebase emulators:start --only database,auth
 ```
+
+## Imágenes de eventos (Firebase Storage)
+
+El editor de eventos puede subir una imagen desde la computadora. Antes de
+subirla, el navegador la ajusta a **1600 × 900 px (16:9) en JPEG**: las fotos
+con forma cercana a 16:9 se recortan al centro y los afiches o imágenes
+verticales se muestran completos sobre un fondo difuminado, para no cortar el
+texto. La imagen se guarda en Firebase Storage (`eventImages/…`) y su enlace
+`https://firebasestorage.googleapis.com/…` va en el campo `imageUrl` del
+evento, así que **la app de estudiantes no necesita cambios**.
+
+Las imágenes que se reemplazan o cuyo evento se elimina se borran de Storage
+(salvo que otro evento, por ejemplo una copia duplicada, use la misma).
+
+Requisitos (una sola vez):
+
+1. Firebase Console → **Storage**: debe estar activado (requiere el plan
+   Blaze). Copia el nombre del bucket (`gs://…`, sin `gs://`) y verifica que
+   coincide con `FIREBASE_STORAGE_BUCKET` en Render.
+2. Firebase Console → Storage → **Reglas**: agrega el bloque
+   `match /eventImages/{folder}/{fileName}` y la función `isEventAdmin()` de
+   [`storage.rules.event-images`](../storage.rules.event-images) dentro de
+   `match /b/{bucket}/o { … }`, **sin borrar las reglas que ya existan** (la
+   app puede usarlas), cambia `ADMIN_EMAIL@uma.edu.pe` por el correo de la
+   cuenta de la consola y haz clic en **Publicar**.
+   - Para varios administradores, agrega sus correos a la lista.
+   - Las reglas de Storage no pueden leer `users/{uid}/role` de la base de
+     datos; por eso se usa la lista de correos (o un *custom claim* `admin`).
+
+No uses `firebase deploy --only storage` con este archivo: reemplazaría todas
+las reglas de Storage del proyecto.
 
 ## 4. Administración de cuentas
 

@@ -4,8 +4,8 @@
  * `window.umaConfig` is produced at build time by `render-build.sh` from
  * environment variables. The web API key and database URL it contains are
  * public by design; no service-account credential is ever shipped to the
- * browser. This app talks to Firebase Authentication and Realtime Database
- * directly from the client — there is no privileged backend.
+ * browser. This app talks to Firebase Authentication, Realtime Database and
+ * Storage (event images) directly from the client — there is no privileged backend.
  */
 
 const config = window.umaConfig || {};
@@ -25,6 +25,14 @@ export const configError = (() => {
 export const app = configError ? null : firebase.initializeApp(firebaseConfig);
 export const auth = configError ? null : firebase.auth();
 export const db = configError ? null : firebase.database();
+// Event cover images. Null when the Storage SDK or the bucket name is missing,
+// which hides the upload option instead of breaking the console.
+export const storage = (() => {
+  if (configError || typeof firebase.storage !== 'function') return null;
+  const bucket = String(firebaseConfig.storageBucket || '');
+  if (!bucket || bucket.startsWith('${')) return null;
+  return firebase.storage();
+})();
 
 export const UNSPLASH_ACCESS_KEY = (() => {
   const key = config.unsplashAccessKey;

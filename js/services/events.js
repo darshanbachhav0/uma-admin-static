@@ -16,6 +16,7 @@ import { cleanText, parseTags, safeUrl, stripMarkdownMarks } from '../utils/vali
 import { findFirstUrl, toHref } from '../ui/linkify.js';
 import { startOfDay } from '../utils/format.js';
 import { documentsDeletionUpdate } from './documents.js';
+import { deleteUploadedEventImage } from './image-upload.js';
 
 export const EVENT_STATUSES = Object.freeze([
   { value: 'upcoming', label: 'Próximo' },
@@ -135,16 +136,26 @@ export async function saveEvent(eventId, values) {
 }
 
 /** Delete an event and its registrations. */
-export async function deleteEvent(event) {
+export async function deleteEvent(event, allEvents = []) {
   if (!event.documentCount) {
     await db.ref(DB_PATHS.events).child(event.id).remove();
-    return;
+  } else {
+    // Remove the event and its documents together, so neither is left behind.
+    await db.ref().update({
+      [`${DB_PATHS.events}/${event.id}`]: null,
+      ...documentsDeletionUpdate(event.id),
+    });
   }
-  // Remove the event and its documents together, so neither is left behind.
-  await db.ref().update({
-    [`${DB_PATHS.events}/${event.id}`]: null,
-    ...documentsDeletionUpdate(event.id),
-  });
+  // Remove its uploaded cover image too, unless a copy of the event uses it.
+  if (!isImageInUse(event.imageUrl, allEvents, event.id)) {
+    await deleteUploadedEventImage(event.imageUrl);
+  }
+}
+
+/** True when another event (not `exceptId`) shows the same image. */
+export function isImageInUse(url, allEvents, exceptId) {
+  if (!url) return false;
+  return allEvents.some((other) => other.id !== exceptId && other.imageUrl === url);
 }
 
 /**
