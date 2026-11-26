@@ -34,4 +34,7 @@ export const UNSPLASH_ACCESS_KEY = (() => {
 export const DB_PATHS = Object.freeze({
   events: 'events',
   users: 'users',
+  // Full registration details written by the student app:
+  // /eventRegistrations/{eventId}/{studentCode} = { name, dni, email, … }
+  eventRegistrations: 'eventRegistrations',
 });
